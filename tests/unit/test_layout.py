@@ -81,6 +81,15 @@ class GeometryTests(unittest.TestCase):
         self.assertGreater(geo.list_h, 0)
         self.assertEqual(geo.prompt_y, 23)
         self.assertEqual(geo.detail_x, geo.list_w + 1)
+        self.assertEqual(geo.composer_h, 2)
+        self.assertEqual(geo.status_y, 21)
+
+    def test_selector_composer_shrinks_the_body(self):
+        idle = compute_geometry(24, 80, 2)
+        choosing = compute_geometry(24, 80, 3)
+        self.assertEqual(choosing.composer_h, 3)
+        self.assertEqual(choosing.status_y, idle.status_y - 1)
+        self.assertLess(choosing.list_h, idle.list_h)
 
     def test_narrow_terminal_stacks_list_above_detail(self):
         geo = compute_geometry(24, 70)

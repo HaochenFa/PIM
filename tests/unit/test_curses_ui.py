@@ -5,6 +5,7 @@ import unittest
 from view.curses_ui import CursesUI
 from view.keys import CREATE, SEARCH
 from tests.unit.test_terminal import make_terminal
+from model import Note
 
 
 class CursesHelperTests(unittest.TestCase):
@@ -14,6 +15,39 @@ class CursesHelperTests(unittest.TestCase):
         self.assertEqual(ui._action("c"), CREATE)
         self.assertEqual(ui._action("/"), SEARCH)
         self.assertIsNone(ui._action("s"))
+
+    def test_type_selector_letter_submits_note(self):
+        app, term, _out = make_terminal()
+        ui = CursesUI(term, object())
+        term.apply_accelerator("create")
+        ui._sync_chooser()
+        self.assertTrue(ui._handle_chooser_key("n"))
+        self.assertEqual(app.calls, [])
+        self.assertIn("text", term._prompt_label())
+        self.assertIsNone(term.current_chooser())
+
+    def test_type_selector_arrows_then_enter(self):
+        app, term, _out = make_terminal()
+        app._result = []
+        ui = CursesUI(term, object())
+        term.apply_accelerator("create")
+        ui._sync_chooser()
+        ui._handle_chooser_key("l")
+        ui._handle_chooser_key("l")
+        chooser = term.current_chooser()
+        self.assertEqual(chooser.value_at(ui.choice_index), "event")
+        ui._handle_chooser_key("\n")
+        self.assertIn("description", term._prompt_label())
+
+    def test_delete_selector_enter_on_default_cancels(self):
+        app, term, _out = make_terminal()
+        app._selected = Note(1, "x")
+        ui = CursesUI(term, object())
+        term.apply_accelerator("delete")
+        ui._sync_chooser()
+        ui._handle_chooser_key("\n")
+        self.assertEqual(app.status, "delete cancelled")
+        self.assertNotIn(("delete",), app.calls)
 
     def test_escape_clears_typed_command_not_running_flag(self):
         app, term, _out = make_terminal()

@@ -36,6 +36,14 @@ from view.keys import (
 )
 from view.layout import MENU, Screen, build_screen, text_lines
 from view.stdin_reader import start_stdin_reader
+from view.widgets import (
+    Prompt,
+    alarm_kind_chooser,
+    alarm_unit_chooser,
+    dirty_chooser,
+    type_chooser,
+    yes_no_chooser,
+)
 
 YES = {"y", "yes"}
 NO = {"n", "no"}
@@ -57,7 +65,7 @@ class Terminal:
         self._now = now
         self.queue: Queue = Queue()
         self.dismissed: set[tuple[int, int]] = set()
-        self._prompts: list[tuple[str, object, str | None]] = []
+        self._prompts: list[Prompt] = []
         self._running = False
         self._last_snapshot = None
         self.page_size = 10
@@ -261,25 +269,35 @@ class Terminal:
 
     def _prompt_label(self) -> str:
         if self._prompts:
-            return self._prompts[-1][0]
+            return self._prompts[-1].label
         return "> "
 
     def _dirty_kind(self) -> str | None:
         if not self._prompts:
             return None
-        return self._prompts[-1][2]
+        return self._prompts[-1].kind
 
     def _is_dirty_prompt(self) -> bool:
         return self._dirty_kind() in {DIRTY_QUIT, DIRTY_LOAD}
 
-    def ask(self, prompt: str, handler, kind: str | None = None):
-        """Push a one-line prompt. `kind` marks dirty save/discard/cancel prompts."""
-        self._prompts.append((prompt, handler, kind))
+    def current_chooser(self):
+        """Selector for the current prompt, or None when the answer is free text."""
+        if not self._prompts:
+            return None
+        return self._prompts[-1].chooser
+
+    def ask(self, prompt: str, handler, kind: str | None = None, chooser=None):
+        """Push a one-line prompt. `kind` marks dirty save/discard/cancel prompts.
+
+        ``chooser`` is a closed set of answers for the TUI. The line UI still
+        types the same values the handler already understands.
+        """
+        self._prompts.append(Prompt(prompt, handler, kind, chooser))
 
     def _handle_line(self, line: str):
         if self._prompts:
-            _prompt, handler, _kind = self._prompts.pop()
-            handler(line)
+            item = self._prompts.pop()
+            item.handler(line)
             return
         self._handle_command(line)
 
@@ -402,7 +420,12 @@ class Terminal:
             self.app.status = "enter save, discard, or cancel"
             self._ask_dirty(on_save, on_discard, on_cancel, kind)
 
-        self.ask("unsaved changes: save / discard / cancel: ", handler, kind)
+        self.ask(
+            "unsaved changes: save / discard / cancel: ",
+            handler,
+            kind,
+            chooser=dirty_chooser("Unsaved changes"),
+        )
 
     def _save(self):
         if self.app.bound_path():
@@ -422,7 +445,12 @@ class Terminal:
                 else:
                     self.app.status = "save as cancelled"
 
-            self.ask(f"overwrite {self.app.save_target(path)}? [y/n]: ", confirm)
+            target = self.app.save_target(path)
+            self.ask(
+                f"overwrite {target}? [y/n]: ",
+                confirm,
+                chooser=yes_no_chooser(f"Overwrite {target}?", prefer_yes=False),
+            )
             return
         self._commit_save(path, then)
 
@@ -453,7 +481,11 @@ class Terminal:
 
     def _start_create(self, type_name: str | None):
         if not type_name:
-            self.ask("type (note/task/event/contact): ", lambda value: self._start_create(value.strip().casefold()))
+            self.ask(
+                "type (note/task/event/contact): ",
+                lambda value: self._start_create(value.strip().casefold()),
+                chooser=type_chooser(),
+            )
             return
         cls = pir_class(type_name)
         if cls is None:
@@ -534,9 +566,17 @@ class Terminal:
                 self._collect_alarms([], capture)
                 return
             self.app.status = "enter y or n"
-            self.ask("replace alarms? [y/n]: ", question)
+            self.ask(
+                "replace alarms? [y/n]: ",
+                question,
+                chooser=yes_no_chooser("Replace alarms?", prefer_yes=False),
+            )
 
-        self.ask("replace alarms? [y/n]: ", question)
+        self.ask(
+            "replace alarms? [y/n]: ",
+            question,
+            chooser=yes_no_chooser("Replace alarms?", prefer_yes=False),
+        )
 
     def _collect_alarms(self, alarms: list, on_done):
         def more(value: str):
@@ -550,7 +590,11 @@ class Terminal:
             self.app.status = "enter y or n"
             self._collect_alarms(alarms, on_done)
 
-        self.ask("add an alarm? [y/n]: ", more)
+        self.ask(
+            "add an alarm? [y/n]: ",
+            more,
+            chooser=yes_no_chooser("Add an alarm?", prefer_yes=False),
+        )
 
     def _one_alarm(self, alarms: list, on_done):
         def kind(value: str):
@@ -578,7 +622,11 @@ class Terminal:
                 alarms.append(RelativeAlarm(0, "minute"))
                 self._collect_alarms(alarms, on_done)
                 return
-            self.ask("unit (minute/hour/day/week): ", lambda unit: unit_done(count, unit))
+            self.ask(
+                "unit (minute/hour/day/week): ",
+                lambda unit: unit_done(count, unit),
+                chooser=alarm_unit_chooser(),
+            )
 
         def unit_done(count, unit):
             try:
@@ -598,7 +646,11 @@ class Terminal:
                 return
             self._collect_alarms(alarms, on_done)
 
-        self.ask("alarm kind (relative/absolute): ", kind)
+        self.ask(
+            "alarm kind (relative/absolute): ",
+            kind,
+            chooser=alarm_kind_chooser(),
+        )
 
     def _start_delete(self):
         pir = self.app.selected()
@@ -612,7 +664,15 @@ class Terminal:
             else:
                 self.app.status = "delete cancelled"
 
-        self.ask(f"delete Id {pir.id} {pir.type_name} {pir.display_name!r}? [y/n]: ", confirm)
+        question = f"delete Id {pir.id} {pir.type_name} {pir.display_name!r}? [y/n]: "
+        self.ask(
+            question,
+            confirm,
+            chooser=yes_no_chooser(
+                f"Delete Id {pir.id} {pir.type_name} {pir.display_name!r}?",
+                prefer_yes=False,
+            ),
+        )
 
     def _layout(self) -> list[str]:
         """Text fallback: one region per line, prompt last."""

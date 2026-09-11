@@ -1,9 +1,9 @@
 """Full-screen stdlib curses UI for an interactive TTY.
 
-The session paints from ``view.layout.Screen``, feeds completed lines into
-``Terminal._handle_line``, and restores the terminal through ``curses.wrapper``.
-Only the main thread calls the model. The tick is ``timeout(500)`` so Alarm
-Alerts appear without a keypress.
+Panes are titled widgets (title, alarms, Current Result, detail, composer).
+Closed answers use a ``Chooser`` (type, yes/no, alarm kind/unit, dirty
+save). Free text still goes through ``Terminal._handle_line``. The tick is
+``timeout(500)`` so Alarm Alerts appear without a keypress.
 """
 
 from __future__ import annotations
@@ -17,6 +17,7 @@ from model.pir import HKT
 from view.keys import COMMAND, HELP as KEY_HELP, action_for_char, action_for_key_name
 from view.layout import HINTS, MENU, compute_geometry, format_list_row, visible_list_window
 from view.textwidth import clip, display_width, wrap
+from view.widgets import Chooser, composer_height
 
 PAIR_TITLE = 1
 PAIR_OVERDUE = 2
@@ -30,6 +31,7 @@ PAIR_TASK = 9
 PAIR_EVENT = 10
 PAIR_CONTACT = 11
 PAIR_RULE = 12
+PAIR_BAR = 13
 
 TYPE_PAIRS = {
     "note": PAIR_NOTE,
@@ -38,20 +40,29 @@ TYPE_PAIRS = {
     "contact": PAIR_CONTACT,
 }
 
+TONE_PAIRS = {
+    "note": PAIR_NOTE,
+    "task": PAIR_TASK,
+    "event": PAIR_EVENT,
+    "contact": PAIR_CONTACT,
+    "ok": PAIR_OK,
+    "danger": PAIR_ERR,
+}
+
 HELP_LINES = (
-    "Keys  (empty prompt)",
-    "  ↑ ↓  j k     select row of Current Result",
-    "  PgUp PgDn    page the list",
-    "  Home End     first / last row",
-    "  /            search (criterion line)",
-    "  c            create   m modify   p print   P print all",
-    "  x Delete     delete (confirms y/n)    d dismiss alarm",
-    "  w            save     q quit",
+    "Keys  (nothing being asked)",
+    "  ↑ ↓  j k     move in Current Result",
+    "  /            search",
+    "  c            create — then pick a type with ← → or n/t/e/c",
+    "  m            modify   p print   P print all",
+    "  x Delete     delete — Yes/No selector",
+    "  d            dismiss alarm    w save    q quit",
     "  :            type a full verb command",
     "  ?            this help",
     "",
-    "Wizards and search still prompt field by field.",
-    "Esc cancels a prompt. Ctrl-C / Ctrl-D are quit.",
+    "When a selector is open: arrows move, Enter confirms, a letter or",
+    "number picks, Esc cancels. You never have to type 'note' or 'yes'.",
+    "",
     MENU,
     "",
     "Any key closes this help.",
@@ -85,6 +96,7 @@ def init_pairs() -> None:
     curses.init_pair(PAIR_EVENT, curses.COLOR_MAGENTA, background)
     curses.init_pair(PAIR_CONTACT, curses.COLOR_CYAN, background)
     curses.init_pair(PAIR_RULE, curses.COLOR_WHITE, background)
+    curses.init_pair(PAIR_BAR, curses.COLOR_BLACK, curses.COLOR_CYAN)
 
 
 class CursesUI:
@@ -99,6 +111,8 @@ class CursesUI:
         self.show_help = False
         self.print_open = False
         self.print_scroll = 0
+        self.choice_index = 0
+        self._chooser_id = None
         self._last_snapshot = None
         self._has_color = False
 
@@ -113,7 +127,7 @@ class CursesUI:
         self._has_color = bool(curses.has_colors())
         self.term._running = True
         if not self.term.app.status:
-            self.term.app.status = "Enter help for commands."
+            self.term.app.status = "c create   / search   ? help"
         self._paint(force=True)
         while self.term._running:
             self._paint(force=False)
@@ -131,10 +145,27 @@ class CursesUI:
             return extra
         return curses.color_pair(pair) | extra
 
+    def _sync_chooser(self) -> Chooser | None:
+        """Reset the highlight when a new selector appears."""
+        chooser = self.term.current_chooser()
+        ident = id(chooser) if chooser is not None else None
+        if ident != self._chooser_id:
+            self._chooser_id = ident
+            self.choice_index = chooser.default if chooser is not None else 0
+        if chooser is not None:
+            self.choice_index = chooser.clamp(self.choice_index)
+        return chooser
+
+    def _composer_h(self) -> int:
+        chooser = self.term.current_chooser()
+        text_prompt = bool(self.term._prompts) or self.raw_command or bool(self.buffer)
+        return composer_height(chooser=chooser, text_prompt=text_prompt)
+
     def _snapshot(self):
         height, width = self.stdscr.getmaxyx()
         now = self.term._now_dt()
         clock = now.strftime("%Y-%m-%d %H:%M") if isinstance(now, datetime) else ""
+        chooser = self.term.current_chooser()
         return (
             self.term._snapshot(),
             self.buffer,
@@ -143,6 +174,8 @@ class CursesUI:
             self.show_help,
             self.print_open,
             self.print_scroll,
+            self.choice_index,
+            None if chooser is None else chooser.title,
             height,
             width,
             clock,
@@ -172,21 +205,49 @@ class CursesUI:
         except curses.error:
             pass
 
-    def _fill(self, y: int, attr: int) -> None:
-        height, width = self.stdscr.getmaxyx()
+    def _fill(self, y: int, attr: int, x: int = 0, width: int | None = None) -> None:
+        height, scr_w = self.stdscr.getmaxyx()
         if y < 0 or y >= height:
             return
-        n = width if y < height - 1 else max(0, width - 1)
+        span = scr_w - x if width is None else width
+        if y == height - 1:
+            span = min(span, max(0, scr_w - x - 1))
+        if span <= 0:
+            return
         try:
-            self.stdscr.addstr(y, 0, " " * n, attr)
+            self.stdscr.addstr(y, x, " " * span, attr)
         except curses.error:
             pass
+
+    def _frame(self, y: int, x: int, h: int, w: int, title: str, attr: int = 0) -> None:
+        """Titled widget border using ACS line drawing."""
+        if h < 2 or w < 2:
+            self._put(y, x, clip(title, max(0, w)), attr | curses.A_BOLD)
+            return
+        try:
+            self.stdscr.hline(y, x, curses.ACS_HLINE, w)
+            bottom = y + h - 1
+            self.stdscr.hline(bottom, x, curses.ACS_HLINE, w)
+            for row in range(y + 1, bottom):
+                self.stdscr.addch(row, x, curses.ACS_VLINE, attr)
+                if x + w - 1 >= 0:
+                    self.stdscr.addch(row, x + w - 1, curses.ACS_VLINE, attr)
+            self.stdscr.addch(y, x, curses.ACS_ULCORNER, attr)
+            self.stdscr.addch(y, x + w - 1, curses.ACS_URCORNER, attr)
+            self.stdscr.addch(bottom, x, curses.ACS_LLCORNER, attr)
+            self.stdscr.addch(bottom, x + w - 1, curses.ACS_LRCORNER, attr)
+        except curses.error:
+            pass
+        if title:
+            label = clip(f" {title} ", max(0, w - 2))
+            self._put(y, x + 1, label, attr | curses.A_BOLD)
 
     def _draw(self) -> None:
         self.stdscr.erase()
         height, width = self.stdscr.getmaxyx()
-        geo = compute_geometry(height, width)
-        self.term.page_size = max(1, geo.list_h)
+        chooser = self._sync_chooser()
+        geo = compute_geometry(height, width, self._composer_h())
+        self.term.page_size = max(1, geo.list_h - 1)
         if geo.too_small:
             self._put(0, 0, "Widen the terminal to use the PIM.", self._attr(PAIR_ERR, curses.A_BOLD))
             self._put(1, 0, "q quits.", self._attr(PAIR_MUTED))
@@ -197,35 +258,28 @@ class CursesUI:
         screen = self.term.screen()
         now = self.term._now_dt()
         clock = now.astimezone(HKT).strftime("HKT %H:%M") if isinstance(now, datetime) else ""
-        title_attr = self._attr(PAIR_TITLE, curses.A_BOLD)
-        dirty_attr = self._attr(PAIR_SOON, curses.A_BOLD) if screen.dirty else title_attr
-        self._put(geo.title_y, 0, screen.title, dirty_attr if screen.dirty else title_attr)
+        bar = self._attr(PAIR_BAR, curses.A_BOLD)
+        self._fill(geo.title_y, bar)
+        self._put(geo.title_y, 1, screen.title, bar)
         if clock:
-            clock_x = max(0, width - display_width(clock) - 1)
-            self._put(geo.title_y, clock_x, clock, self._attr(PAIR_MUTED))
+            clock_x = max(0, width - display_width(clock) - 2)
+            self._put(geo.title_y, clock_x, clock, bar)
         self._draw_alarm(geo, screen, width)
-        self._draw_list(geo, screen)
-        self._draw_detail(geo, screen)
-        if not geo.stacked:
-            for y in range(geo.list_header_y, geo.status_y):
-                try:
-                    self.stdscr.addch(y, geo.list_w, curses.ACS_VLINE, self._attr(PAIR_RULE))
-                except curses.error:
-                    pass
+        self._draw_panes(geo, screen)
         self._draw_status(geo, screen, width)
-        self._put(geo.hints_y, 0, clip(HINTS, width - 1), self._attr(PAIR_MUTED))
-        prompt = self._prompt_text(screen)
-        self._put(geo.prompt_y, 0, clip(prompt, width - 1), self._attr(PAIR_TITLE))
-        if self._is_dialog():
-            self._draw_dialog(width, height)
+        self._draw_composer(geo, screen, chooser, width)
         if self.print_open and screen.print_text:
             self._draw_overlay(width, height, "PRINT", screen.print_text, self.print_scroll)
         if self.show_help:
             self._draw_overlay(width, height, "HELP", "\n".join(HELP_LINES), 0)
-        cursor_x = min(max(0, width - 2), self._cursor_col())
+        hide_cursor = bool(chooser) or self.show_help or self.print_open
+        if not hide_cursor and not (self.term._prompts or self.raw_command or self.buffer):
+            hide_cursor = True
         try:
-            curses.curs_set(0 if (self.show_help or self.print_open) else 1)
-            self.stdscr.move(geo.prompt_y, cursor_x)
+            curses.curs_set(0 if hide_cursor else 1)
+            if not hide_cursor:
+                cursor_x = min(max(0, width - 2), 2 + display_width(self.buffer[: self.cursor]))
+                self.stdscr.move(geo.composer_y + 1, cursor_x)
         except curses.error:
             pass
         self.stdscr.noutrefresh()
@@ -234,82 +288,100 @@ class CursesUI:
     def _draw_alarm(self, geo, screen, width: int) -> None:
         if not screen.alarms:
             self._fill(geo.alarm_y, self._attr(PAIR_MUTED))
-            self._put(geo.alarm_y, 0, "  no alarms", self._attr(PAIR_MUTED))
+            self._put(geo.alarm_y, 1, "Alarms  none due", self._attr(PAIR_MUTED))
             return
         first = screen.alarms[0]
         pair = PAIR_OVERDUE if first.status == "OVERDUE" else PAIR_SOON
         attr = self._attr(pair, curses.A_BOLD)
         extra = f"  +{len(screen.alarms) - 1} more" if len(screen.alarms) > 1 else ""
         text = (
-            f"  {first.status}  Id {first.event_id}  {first.description}  "
-            f"{first.when}{extra}    d dismiss"
+            f" {first.status}  Id {first.event_id}  {first.description}  "
+            f"{first.when}{extra}   d dismiss"
         )
         self._fill(geo.alarm_y, attr)
         self._put(geo.alarm_y, 0, clip(text, width - 1), attr)
 
-    def _draw_list(self, geo, screen) -> None:
+    def _draw_panes(self, geo, screen) -> None:
         count = len(screen.rows)
-        selected = next((i for i, row in enumerate(screen.rows) if row.selected), None)
-        header = f" Current Result ({screen.filter_label})  {count} PIR(s)"
-        self._put(geo.list_header_y, geo.list_x, clip(header, geo.list_w), self._attr(PAIR_TITLE, curses.A_BOLD))
-        if geo.list_h <= 0:
+        list_title = f"Current Result · {screen.filter_label} · {count}"
+        if screen.selected_id is None:
+            detail_title = "Detail"
+        else:
+            kind = ""
+            for key, value in screen.detail:
+                if key.casefold() == "type":
+                    kind = str(value)
+                    break
+            detail_title = f"Detail · Id {screen.selected_id}" + (f" · {kind}" if kind else "")
+        rule = self._attr(PAIR_RULE)
+        if geo.stacked:
+            list_h = geo.detail_header_y - geo.list_header_y
+            detail_h = geo.status_y - geo.detail_header_y
+            self._frame(geo.list_header_y, 0, list_h, geo.width, list_title, rule)
+            self._frame(geo.detail_header_y, 0, detail_h, geo.width, detail_title, rule)
+        else:
+            pane_h = geo.status_y - geo.list_header_y
+            self._frame(geo.list_header_y, 0, pane_h, geo.list_w, list_title, rule)
+            self._frame(geo.detail_header_y, geo.detail_x, pane_h, geo.detail_w, detail_title, rule)
+        self._draw_list(geo, screen)
+        self._draw_detail(geo, screen)
+
+    def _draw_list(self, geo, screen) -> None:
+        inner_x = geo.list_x + 1
+        inner_w = max(1, geo.list_w - 2)
+        y = geo.list_y
+        last = min(geo.list_y + geo.list_h, geo.status_y - 1)
+        if y >= last:
             return
         if not screen.rows:
             self._put(
-                geo.list_y,
-                geo.list_x,
-                clip("  No PIRs — press c to create", geo.list_w),
+                y,
+                inner_x,
+                clip("No PIRs — press c, then pick a type", inner_w),
                 self._attr(PAIR_MUTED, curses.A_BOLD),
             )
             return
-        scroll = visible_list_window(count, selected, geo.list_h)
-        for offset in range(geo.list_h):
+        selected = next((i for i, row in enumerate(screen.rows) if row.selected), None)
+        height = last - y
+        scroll = visible_list_window(len(screen.rows), selected, height)
+        for offset in range(height):
             index = scroll + offset
-            y = geo.list_y + offset
-            if index >= count:
+            if index >= len(screen.rows):
                 break
             row = screen.rows[index]
-            line = format_list_row(row, geo.list_w, short_time_col=True)
+            line = format_list_row(row, inner_w, short_time_col=True)
             if row.selected:
                 attr = self._attr(PAIR_SELECT, curses.A_BOLD)
-                self._put(y, geo.list_x, clip(line.ljust(geo.list_w), geo.list_w), attr)
+                self._fill(y + offset, attr, inner_x, inner_w)
+                self._put(y + offset, inner_x, clip(line, inner_w), attr)
             else:
                 attr = self._attr(TYPE_PAIRS.get(row.type_name, PAIR_MUTED))
-                self._put(y, geo.list_x, line, attr)
+                self._put(y + offset, inner_x, line, attr)
 
     def _draw_detail(self, geo, screen) -> None:
-        if screen.selected_id is None:
-            title = " DETAIL"
-        else:
-            kind = screen.detail[0][1] if screen.detail and screen.detail[0][0].casefold() == "type" else ""
-            title = f" DETAIL  Id {screen.selected_id}" + (f"  {kind}" if kind else "")
-        self._put(geo.detail_header_y, geo.detail_x, clip(title, geo.detail_w), self._attr(PAIR_TITLE, curses.A_BOLD))
-        if geo.detail_h <= 0:
+        inner_x = geo.detail_x + 1
+        inner_w = max(1, geo.detail_w - 2)
+        y = geo.detail_y
+        last = min(geo.detail_y + geo.detail_h, geo.status_y - 1)
+        if y >= last:
             return
         if not screen.detail:
-            self._put(
-                geo.detail_y,
-                geo.detail_x,
-                clip("  (no selection)", geo.detail_w),
-                self._attr(PAIR_MUTED),
-            )
+            self._put(y, inner_x, clip("Select a row to read it here", inner_w), self._attr(PAIR_MUTED))
             return
-        y = geo.detail_y
-        last = geo.detail_y + geo.detail_h
-        label_w = min(14, geo.detail_w)
+        label_w = min(14, inner_w)
         for key, value in screen.detail:
             if y >= last:
                 break
-            self._put(y, geo.detail_x, clip(f"  {key}", label_w), self._attr(PAIR_MUTED))
-            remain = geo.detail_w - label_w
+            self._put(y, inner_x, clip(key, label_w), self._attr(PAIR_MUTED))
+            remain = inner_w - label_w
             chunks = wrap(str(value), max(1, remain)) if remain > 0 else []
             if chunks:
-                self._put(y, geo.detail_x + label_w, chunks[0], 0)
+                self._put(y, inner_x + label_w, chunks[0], 0)
             y += 1
             for chunk in chunks[1:]:
                 if y >= last:
                     break
-                self._put(y, geo.detail_x + label_w, chunk, 0)
+                self._put(y, inner_x + label_w, chunk, 0)
                 y += 1
 
     def _draw_status(self, geo, screen, width: int) -> None:
@@ -336,39 +408,67 @@ class CursesUI:
             attr = self._attr(PAIR_OK)
         else:
             attr = self._attr(PAIR_MUTED)
-        self._put(geo.status_y, 0, clip(text, width - 1), attr)
+        self._fill(geo.status_y, self._attr(PAIR_MUTED))
+        self._put(geo.status_y, 1, clip(text, width - 2), attr)
 
-    def _prompt_text(self, screen) -> str:
-        if self.term._prompts:
-            return screen.prompt + self.buffer
+    def _draw_composer(self, geo, screen, chooser: Chooser | None, width: int) -> None:
+        rule = self._attr(PAIR_TITLE)
+        if chooser is not None:
+            self._frame(geo.composer_y, 0, geo.composer_h, width, chooser.title, rule)
+            self._draw_chips(geo.composer_y + 1, 2, max(1, width - 4), chooser, self.choice_index)
+            if geo.composer_h >= 3:
+                self._put(
+                    geo.composer_y + geo.composer_h - 1,
+                    2,
+                    clip(chooser.hint, width - 4),
+                    self._attr(PAIR_MUTED),
+                )
+            return
+        if self.term._prompts or self.raw_command or self.buffer:
+            label = self._field_title(screen)
+            self._frame(geo.composer_y, 0, geo.composer_h, width, label, rule)
+            field = self.buffer
+            self._put(geo.composer_y + 1, 2, clip(field if field else " ", width - 4), 0)
+            return
+        self._fill(geo.composer_y, self._attr(PAIR_MUTED))
+        self._put(geo.composer_y, 1, clip(HINTS, width - 2), self._attr(PAIR_MUTED))
+        if geo.composer_h > 1:
+            self._fill(geo.composer_y + 1, self._attr(PAIR_MUTED))
+            self._put(
+                geo.composer_y + 1,
+                1,
+                clip("▸  type a command after :    or press a key above", width - 2),
+                self._attr(PAIR_MUTED),
+            )
+
+    def _field_title(self, screen) -> str:
         if self.raw_command:
-            return "> " + self.buffer
-        if self.buffer:
-            return "> " + self.buffer
-        return screen.prompt if screen.prompt else "> "
+            return "Command"
+        label = screen.prompt.rstrip()
+        if label.endswith(":"):
+            label = label[:-1].strip()
+        return label or "Input"
 
-    def _cursor_col(self) -> int:
-        """Column of the caret: label width plus the buffer prefix before the caret."""
-        if self.term._prompts:
-            label = self.term._prompt_label()
-        elif self.raw_command or self.buffer:
-            label = "> "
-        else:
-            label = self.term._prompt_label() or "> "
-        return display_width(label) + display_width(self.buffer[: self.cursor])
+    def _draw_chips(self, y: int, x: int, width: int, chooser: Chooser, index: int) -> None:
+        """Horizontal option chips. Falls back to a single highlighted label if tight."""
+        cursor = x
+        limit = x + width
+        for i, option in enumerate(chooser.options):
+            selected = i == index
+            key = option.key or str(i + 1)
+            body = f" {key} {option.label} "
+            w = display_width(body)
+            if cursor + w > limit:
+                if i == 0:
+                    self._put(y, x, clip(body, width), self._chip_attr(option.tone, selected))
+                break
+            self._put(y, cursor, body, self._chip_attr(option.tone, selected))
+            cursor += w + 1
 
-    def _is_dialog(self) -> bool:
-        if self.term._is_dirty_prompt():
-            return True
-        label = self.term._prompt_label()
-        return "[y/n]" in label or "save / discard / cancel" in label
-
-    def _draw_dialog(self, width: int, height: int) -> None:
-        question = self.term._prompt_label().rstrip()
-        if question.endswith(":"):
-            question = question[:-1].strip()
-        lines = [clip(question, 48), "", "type an answer below, or Esc to cancel"]
-        self._box(width, height, "Confirm", lines)
+    def _chip_attr(self, tone: str | None, selected: bool) -> int:
+        pair = TONE_PAIRS.get(tone or "", PAIR_TITLE)
+        extra = curses.A_REVERSE | curses.A_BOLD if selected else curses.A_BOLD
+        return self._attr(pair, extra)
 
     def _draw_overlay(self, width: int, height: int, title: str, body: str, scroll: int) -> None:
         inner_w = min(width - 4, max(40, width * 3 // 4))
@@ -388,15 +488,7 @@ class CursesUI:
         box_h = max(3, min(box_h, height - 2))
         y0 = max(0, (height - box_h) // 2)
         x0 = max(0, (width - box_w) // 2)
-        attr = self._attr(PAIR_TITLE)
-        for y in range(y0, y0 + box_h):
-            self._put(y, x0, " " * min(box_w, width - x0 - (1 if y == height - 1 else 0)), attr)
-        try:
-            self.stdscr.hline(y0, x0, curses.ACS_HLINE, box_w)
-            self.stdscr.hline(y0 + box_h - 1, x0, curses.ACS_HLINE, min(box_w, width - x0 - 1))
-        except curses.error:
-            pass
-        self._put(y0, x0 + 1, clip(f" {title} ", box_w - 2), self._attr(PAIR_TITLE, curses.A_BOLD))
+        self._frame(y0, x0, box_h, box_w, title, self._attr(PAIR_TITLE))
         for i, line in enumerate(lines[: box_h - 2]):
             self._put(y0 + 1 + i, x0 + 2, clip(line, box_w - 4), 0)
 
@@ -418,17 +510,21 @@ class CursesUI:
         if self.print_open:
             if self._handle_print_key(ch):
                 return
-        if ch in (curses.KEY_ENTER, 10, 13, "\n", "\r"):
-            self._submit()
-            return
-        if ch in (27, "\x1b"):
-            self._escape()
-            return
         if ch in (4, "\x04"):
             self._safe(self.term._handle_eof)
             return
         if ch in (3, "\x03"):
             self._safe(self.term._handle_interrupt)
+            return
+        self._sync_chooser()
+        if self.term.current_chooser() is not None:
+            if self._handle_chooser_key(ch):
+                return
+        if ch in (curses.KEY_ENTER, 10, 13, "\n", "\r"):
+            self._submit()
+            return
+        if ch in (27, "\x1b"):
+            self._escape()
             return
         editing = bool(self.term._prompts) or self.raw_command or bool(self.buffer)
         if not editing:
@@ -449,6 +545,47 @@ class CursesUI:
                     self.print_scroll = 0
                 return
         self._edit(ch)
+
+    def _handle_chooser_key(self, ch) -> bool:
+        """True when the selector consumed the key."""
+        chooser = self.term.current_chooser()
+        if chooser is None:
+            return False
+        if ch in (curses.KEY_ENTER, 10, 13, "\n", "\r"):
+            self._chooser_submit(chooser)
+            return True
+        if ch in (27, "\x1b"):
+            self._escape()
+            return True
+        if ch in (curses.KEY_LEFT, curses.KEY_UP, "h", "k"):
+            self.choice_index = chooser.move(self.choice_index, -1)
+            return True
+        if ch in (curses.KEY_RIGHT, curses.KEY_DOWN, "l", "j"):
+            self.choice_index = chooser.move(self.choice_index, 1)
+            return True
+        if ch in (curses.KEY_HOME,):
+            self.choice_index = 0
+            return True
+        if ch in (curses.KEY_END,):
+            self.choice_index = chooser.clamp(len(chooser.options) - 1)
+            return True
+        if isinstance(ch, str) and len(ch) == 1:
+            picked = chooser.pick_key(ch)
+            if picked is not None:
+                self.choice_index = picked
+                self._chooser_submit(chooser)
+                return True
+        return True
+
+    def _chooser_submit(self, chooser: Chooser) -> None:
+        value = chooser.value_at(self.choice_index)
+        self.buffer = ""
+        self.cursor = 0
+        before = self.term.app.print_text
+        self._safe(lambda: self.term._handle_line(value))
+        if self.term.app.print_text and self.term.app.print_text != before:
+            self.print_open = True
+            self.print_scroll = 0
 
     def _action(self, ch) -> str | None:
         if isinstance(ch, str):

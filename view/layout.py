@@ -94,6 +94,8 @@ class Geometry:
     status_y: int
     hints_y: int
     prompt_y: int
+    composer_y: int
+    composer_h: int
 
 
 def short_time(dt) -> str:
@@ -211,15 +213,17 @@ def text_lines(screen: Screen) -> list[str]:
     ]
 
 
-def compute_geometry(height: int, width: int) -> Geometry:
-    """Split a terminal into title, alarm, list, detail, status, hints, prompt.
+def compute_geometry(height: int, width: int, composer_h: int = 2) -> Geometry:
+    """Split a terminal into titled panes plus a bottom composer.
 
     Side-by-side master–detail at ``WIDE_WIDTH`` or more; stacked list above
-    detail when narrower. Below ``MIN_HEIGHT`` × ``MIN_WIDTH`` the layout is
-    flagged ``too_small``.
+    detail when narrower. ``composer_h`` is the selector / field / hint strip.
+    Below ``MIN_HEIGHT`` × ``MIN_WIDTH`` the layout is flagged ``too_small``.
     """
     too_small = height < MIN_HEIGHT or width < MIN_WIDTH
     stacked = width < WIDE_WIDTH
+    composer_h = max(2, composer_h)
+    composer_y = max(0, height - composer_h)
     if too_small:
         return Geometry(
             height=height,
@@ -238,13 +242,15 @@ def compute_geometry(height: int, width: int) -> Geometry:
             detail_h=0,
             detail_x=0,
             detail_w=max(0, width),
-            status_y=max(0, height - 3),
+            status_y=max(0, composer_y - 1),
             hints_y=max(0, height - 2),
             prompt_y=max(0, height - 1),
+            composer_y=composer_y,
+            composer_h=composer_h,
         )
     title_y = 0
     alarm_y = 1
-    status_y = height - 3
+    status_y = max(2, composer_y - 1)
     hints_y = height - 2
     prompt_y = height - 1
     body_top = 2
@@ -280,6 +286,8 @@ def compute_geometry(height: int, width: int) -> Geometry:
             status_y=status_y,
             hints_y=hints_y,
             prompt_y=prompt_y,
+            composer_y=composer_y,
+            composer_h=composer_h,
         )
     list_w = max(36, min(52, width * 5 // 8))
     detail_x = list_w + 1
@@ -307,6 +315,8 @@ def compute_geometry(height: int, width: int) -> Geometry:
         status_y=status_y,
         hints_y=hints_y,
         prompt_y=prompt_y,
+        composer_y=composer_y,
+        composer_h=composer_h,
     )
 
 
