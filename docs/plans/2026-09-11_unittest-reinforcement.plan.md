@@ -20,19 +20,16 @@ Keep shared fixture at `tests/fixture.py`. Split suites so the hook can run them
 ```
 tests/
   fixture.py                 # ACCEPTANCE §4 fixture (unchanged)
-  unit/                      # existing model tests, moved
-    test_pim.py
-    test_pir.py
-    test_search.py
-    test_persist.py
-    test_alarms.py
+  unit/
+    test_pim.py test_pir.py test_search.py test_persist.py test_alarms.py
+    test_app.py test_errors.py          # controller
+    test_terminal.py test_stdin_reader.py
   integration/
-    test_app.py              # App ↔ PIM, no Terminal
+    test_app.py              # App ↔ PIM
+    test_terminal.py         # Terminal ↔ App ↔ PIM, no stdin thread
   e2e/
-    harness.py               # scripted stdin + captured stdout
-    test_user_flows.py       # US1–US11 through the UI
-    test_demo.py             # ACCEPTANCE §6
-    test_alerts.py           # in-process OVERDUE / SOON / dismiss
+    harness.py
+    test_user_flows.py test_demo.py test_alerts.py test_commands.py
 ```
 
 `python -m unittest` from the source root still discovers **all three** layers (nested `test_*.py`). Coverage tracing uses **unit only**.

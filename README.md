@@ -28,7 +28,7 @@ model/          # required package name; the unit-test surface
 view/           # designed terminal UI and in-process Alarm Alerts
 controller/     # one user action → model.PIM
 pim.py          # composition root: python pim.py
-tests/unit/     # unittest for model (100% line coverage required)
+tests/unit/     # model (100% lines) + controller + view
 tests/integration/
 tests/e2e/
 hooks/          # pre-commit: unit + integration + e2e

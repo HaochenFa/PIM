@@ -8,8 +8,8 @@ Platform: **macOS**. Language: **Python 3.12** (the version this tree was built 
 - `view/` — designed terminal UI and in-process Alarm Alerts (stdin thread + 500ms tick).
 - `controller/` — one completed user action → `model.PIM`.
 - `pim.py` — composition root.
-- `tests/unit/` — `unittest` for `model` only (assignment surface).
-- `tests/integration/` — `controller.App` against `model.PIM`.
+- `tests/unit/` — `model` (assignment surface, 100% lines), `controller.App`, `view.Terminal`.
+- `tests/integration/` — App against PIM; Terminal against App+PIM (no stdin thread).
 - `tests/e2e/` — scripted terminal sessions through `Terminal.run()`.
 - `hooks/pre-commit` — refuses a commit unless unit (100% `model/` coverage), integration, and e2e all pass.
 

@@ -99,8 +99,8 @@ Use glossary terms as written. Forbidden substitutions:
 
 - Framework: `unittest` (the brief’s example). Automatically executable, all passing.
 - Three layers, all stdlib:
-  - **Unit** (`tests/unit`): `model` only — the graded surface. `coverage_report.py` must report **100%** of countable `model/` lines.
-  - **Integration** (`tests/integration`): `controller.App` against `model.PIM` (no Terminal, no threads).
+  - **Unit** (`tests/unit`): `model` (graded surface), `controller` (App/errors with a mocked PIM), and `view` (Terminal/stdin_reader with a fake App). `coverage_report.py` must report **100%** of countable `model/` lines.
+  - **Integration** (`tests/integration`): `controller.App` against `model.PIM`; `view.Terminal` against App+PIM on one thread (no stdin reader).
   - **E2E** (`tests/e2e`): scripted stdin through `Terminal.run()` with injected `stdin` / `stdout` / `now`.
 - Each test must state the behaviour it exercises (name or comment) and assert expected results.
 - Cover: four types create/validate/modify/delete; Id stability; contains / unqualified contains / missing-field time / and-or-not / multi-alarm; save/load round-trip; `due_alarms` with injected `now`; dirty flag; corrupt file does not clobber memory.
