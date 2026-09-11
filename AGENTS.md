@@ -111,8 +111,65 @@ Use glossary terms as written. Forbidden substitutions:
 - When implementing, keep `model` the test surface: if a rule cannot be tested through `PIM` / Criterion, it is in the wrong package.
 - If you must choose a detail not in the docs (e.g. exact menu keystrokes), pick the smallest option that still satisfies acceptance, and record it in a new ADR only if it is hard to reverse, surprising, and a real trade-off.
 - Do not update `CONTEXT.md` with implementation types, file paths, or Python names. Glossary is domain only.
-- Do not rewrite `docs/01`–`03` or accepted ADRs unless the user explicitly changes a product decision.
+- Do not rewrite `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/ACCEPTANCE.md`, or accepted ADRs unless the user explicitly changes a product decision.
 - Honour Declaration: GenAI use is allowed if acknowledged. Do not invent a false “no GenAI” claim. Contribution splits are the group’s, not the agent’s.
+
+## Commit messages
+
+Every commit message uses Conventional Commits, with a **scope** and a body that is detailed enough that a later reader does not need the diff to know what changed and why.
+
+Format:
+
+```
+<type>(<scope>): <short summary>
+
+<body>
+```
+
+- **type**: `feat`, `fix`, `refactor`, `test`, `docs`, `chore` (use `feat` for user-visible behaviour, `fix` for defects, `refactor` for structure without behaviour change).
+- **scope**: usually `PIM`, or a tighter one when the change is local (`model`, `view`, `controller`, `tests`).
+- **summary**: imperative, lowercase after the colon, no trailing period; one line.
+- **body**: required unless the change is trivial (typo, path-only). State what changed, which stories or ADRs it serves, and any behaviour a reviewer must not miss. Wrap at ~72 characters.
+
+Examples:
+
+```
+feat(PIM): add field-driven create and modify wizards
+
+Replace per-type prompt closures in the View with FieldSpec lists on
+each PIR class. Alarms are RelativeAlarm/AbsoluteAlarm objects, not
+JSON dicts. Empty modify no longer marks the collection dirty.
+```
+
+```
+fix(model): keep load from clobbering memory on bad JSON
+```
+
+Do not write one-line messages like `update` or `INIT (PLAN)`. Do not omit the type/scope prefix.
+
+### Granularity
+
+Each commit has **one job**. Prefer a few medium-sized commits over one dump of everything the agent did in a turn.
+
+When staging, split if any of these is true:
+
+- different **types** (`feat` vs `fix` vs `refactor` vs `docs` vs `test`)
+- different **layers** (`model` vs `view`/`controller` vs manuals vs `AGENTS.md`)
+- independent behaviour a reviewer could accept or revert on its own
+
+Do this even when the user said “implement/fix/refactor all of this” in one request, and even when the agent produced every file in one session. Implement together if that is faster; **commit separately**.
+
+Do **not** split a single atomic behaviour across commits (e.g. a `model` change that would fail tests until the matching `tests/` file lands — those stay together). Do not invent tiny commits for whitespace or import reorder.
+
+Order dependent commits so each leaves `python -m unittest` green.
+
+## Comments and docstrings
+
+Code the agent writes or substantially edits must be documented in **English**:
+
+- Every public module, class, and function gets a docstring. Modules: what the file is for. Classes: the type’s role in MVC / the domain. Functions/methods: arguments, return value, and error cases when they are not obvious from the name.
+- Add a short line comment at non-obvious points: atomic copy-then-replace, dirty-file rules, EOF vs quit, criterion precedence, why `now` is injected, why a failed command must not mutate.
+- Do not narrate the code (`# increment i`). Do not leave commented-out code. Docstrings explain behaviour and invariants, not the history of the change.
 
 ## Required gates
 
