@@ -14,7 +14,7 @@ from queue import Empty, Queue
 from controller.app import HELP
 from controller.errors import message_for
 from model import AbsoluteAlarm, PIMError, RelativeAlarm
-from model.pir import KIND_ALARMS, HKT, pir_class
+from model.pir import KIND_ALARMS, KIND_DATETIME, HKT, pir_class
 from view.keys import (
     CREATE,
     DELETE,
@@ -37,6 +37,8 @@ from view.keys import (
 from view.layout import MENU, Screen, build_screen, text_lines
 from view.stdin_reader import start_stdin_reader
 from view.widgets import (
+    DATETIME_FORMAT,
+    DateTimePicker,
     Prompt,
     alarm_kind_chooser,
     alarm_unit_chooser,
@@ -286,13 +288,19 @@ class Terminal:
             return None
         return self._prompts[-1].chooser
 
-    def ask(self, prompt: str, handler, kind: str | None = None, chooser=None):
+    def current_picker(self):
+        """Calendar for a datetime prompt, or None."""
+        if not self._prompts:
+            return None
+        return self._prompts[-1].picker
+
+    def ask(self, prompt: str, handler, kind: str | None = None, chooser=None, picker=None):
         """Push a one-line prompt. `kind` marks dirty save/discard/cancel prompts.
 
-        ``chooser`` is a closed set of answers for the TUI. The line UI still
-        types the same values the handler already understands.
+        ``chooser`` / ``picker`` are TUI widgets. The line UI still types the
+        same values the handler already understands.
         """
-        self._prompts.append(Prompt(prompt, handler, kind, chooser))
+        self._prompts.append(Prompt(prompt, handler, kind, chooser, picker))
 
     def _handle_line(self, line: str):
         if self._prompts:
@@ -510,6 +518,8 @@ class Terminal:
         self.dismissed = {key for key in self.dismissed if key[0] != event_id}
 
     def _field_prompt(self, spec, existing) -> str:
+        if spec.kind == KIND_DATETIME:
+            return self._datetime_prompt(spec, existing)
         if existing is None:
             extra = "" if spec.required else " (optional, empty skips)"
             return f"{spec.label}{extra}: "
@@ -517,6 +527,21 @@ class Terminal:
         if spec.required:
             return f"{spec.label} [{current}]: "
         return f"{spec.label} [{current}] (empty keeps, none clears): "
+
+    def _datetime_prompt(self, spec, existing) -> str:
+        """Tell the user the accepted clock format and the default zone."""
+        zone = f"{DATETIME_FORMAT}, Hong Kong Time"
+        if existing is None:
+            extra = "" if spec.required else " (optional, empty skips)"
+            return f"{spec.label} ({zone}){extra}: "
+        current = existing.display_field(spec.key)
+        if spec.required:
+            return f"{spec.label} [{current}] ({zone}): "
+        return f"{spec.label} [{current}] ({zone}; empty keeps, none clears): "
+
+    def _datetime_picker(self, title: str, existing_value=None, *, required: bool) -> DateTimePicker:
+        initial = existing_value if isinstance(existing_value, datetime) else None
+        return DateTimePicker(title, self._now_dt(), initial=initial, required=required)
 
     def _prompt_fields(self, specs, existing, on_done):
         pending = list(specs)
@@ -530,7 +555,19 @@ class Terminal:
             if spec.kind == KIND_ALARMS:
                 self._prompt_alarms(existing, fields, next_field)
                 return
-            self.ask(self._field_prompt(spec, existing), lambda line, spec=spec: got_value(spec, line))
+            picker = None
+            if spec.kind == KIND_DATETIME:
+                current = None if existing is None else getattr(existing, spec.key, None)
+                picker = self._datetime_picker(
+                    f"{spec.label} · Hong Kong Time",
+                    current,
+                    required=spec.required,
+                )
+            self.ask(
+                self._field_prompt(spec, existing),
+                lambda line, spec=spec: got_value(spec, line),
+                picker=picker,
+            )
 
         def got_value(spec, line):
             if existing is not None:
@@ -602,7 +639,11 @@ class Terminal:
             if answer in {"relative", "r"}:
                 self.ask("amount (0 = at start): ", amount)
             elif answer in {"absolute", "a"}:
-                self.ask("at: ", at)
+                self.ask(
+                    f"at ({DATETIME_FORMAT}, Hong Kong Time): ",
+                    at,
+                    picker=self._datetime_picker("Alarm at · Hong Kong Time", required=True),
+                )
             else:
                 self.app.status = "enter relative or absolute"
                 self._one_alarm(alarms, on_done)

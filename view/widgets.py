@@ -7,7 +7,29 @@ US1–US11 and the e2e scripts unchanged.
 
 from __future__ import annotations
 
+import calendar
 from dataclasses import dataclass
+from datetime import date, datetime, timedelta
+
+from model.pir import HKT
+
+WEEKDAYS = ("Mo", "Tu", "We", "Th", "Fr", "Sa", "Su")
+MONTHS = (
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+)
+TIME_STEP = 15
+DATETIME_FORMAT = "YYYY-MM-DD HH:MM"
 
 
 @dataclass(frozen=True)
@@ -65,14 +87,124 @@ class Chooser:
         return self.options[self.clamp(index)].value
 
 
+class DateTimePicker:
+    """Month grid + time, like a calendar app. Submit value is ``YYYY-MM-DD HH:MM``.
+
+    Week starts Monday (ISO / Hong Kong). Time steps 15 minutes, with 1-minute
+    nudges. The line UI never sees this object — it still types the same string.
+    """
+
+    def __init__(self, title: str, now: datetime, *, initial=None, required: bool = True):
+        local = now.astimezone(HKT) if now.tzinfo else now.replace(tzinfo=HKT)
+        self.today = local.date()
+        if initial is not None:
+            seed = initial.astimezone(HKT) if initial.tzinfo else initial.replace(tzinfo=HKT)
+            self.day = seed.date()
+            self.hour = seed.hour
+            self.minute = seed.minute
+        else:
+            self.day, self.hour, self.minute = _next_slot(local)
+        self.view = date(self.day.year, self.day.month, 1)
+        self.focus = "date"
+        self.title = title
+        self.required = required
+
+    def value(self) -> str:
+        """Instant the field handler already accepts (naive → HKT)."""
+        return f"{self.day.isoformat()} {self.hour:02d}:{self.minute:02d}"
+
+    def summary(self) -> str:
+        """Readable confirmation, not an input format."""
+        weekday = WEEKDAYS[self.day.weekday()]
+        month = MONTHS[self.day.month - 1]
+        return f"{weekday} {self.day.day} {month} {self.day.year}  {self.hour:02d}:{self.minute:02d}  HKT"
+
+    def month_title(self) -> str:
+        """English month name and year for the grid header."""
+        return f"{MONTHS[self.view.month - 1]} {self.view.year}"
+
+    def weeks(self) -> list[list[date]]:
+        """Six-or-fewer weeks covering ``view``, Monday first, including spill days."""
+        cal = calendar.Calendar(firstweekday=calendar.MONDAY)
+        return cal.monthdatescalendar(self.view.year, self.view.month)
+
+    def move_day(self, days: int) -> None:
+        """Move the highlighted day and keep the month view on it."""
+        self.day = self.day + timedelta(days=days)
+        self.view = date(self.day.year, self.day.month, 1)
+
+    def move_month(self, months: int) -> None:
+        """Shift the visible month; clamp the day if the month is shorter."""
+        year = self.view.year
+        month = self.view.month + months
+        while month < 1:
+            month += 12
+            year -= 1
+        while month > 12:
+            month -= 12
+            year += 1
+        last = calendar.monthrange(year, month)[1]
+        self.day = date(year, month, min(self.day.day, last))
+        self.view = date(year, month, 1)
+
+    def move_time(self, minutes: int) -> None:
+        """Change the clock, wrapping inside the same day."""
+        total = (self.hour * 60 + self.minute + minutes) % (24 * 60)
+        if total < 0:
+            total += 24 * 60
+        self.hour = total // 60
+        self.minute = total % 60
+
+    def jump_today(self, now: datetime) -> None:
+        """Select today's date; keep the chosen clock."""
+        local = now.astimezone(HKT) if now.tzinfo else now.replace(tzinfo=HKT)
+        self.day = local.date()
+        self.view = date(self.day.year, self.day.month, 1)
+
+    def toggle_focus(self) -> None:
+        """Tab between the month grid and the time list."""
+        self.focus = "time" if self.focus == "date" else "date"
+
+    def time_slots(self, count: int = 7) -> list[tuple[int, int]]:
+        """``count`` clock faces around the selection, 15 minutes apart."""
+        current = self.hour * 60 + self.minute
+        snapped = current - (current % TIME_STEP)
+        start = snapped - (count // 2) * TIME_STEP
+        slots = []
+        hit = False
+        for index in range(count):
+            total = (start + index * TIME_STEP) % (24 * 60)
+            pair = (total // 60, total % 60)
+            slots.append(pair)
+            if pair == (self.hour, self.minute):
+                hit = True
+        if not hit and slots:
+            slots[count // 2] = (self.hour, self.minute)
+        return slots
+
+
+def _next_slot(local: datetime) -> tuple[date, int, int]:
+    """Round *up* to the next 15-minute mark, like a calendar create sheet."""
+    total = local.hour * 60 + local.minute
+    remainder = total % TIME_STEP
+    if remainder:
+        total += TIME_STEP - remainder
+    day = local.date()
+    if total >= 24 * 60:
+        day = day + timedelta(days=1)
+        total = 0
+    return day, total // 60, total % 60
+
+
 @dataclass
 class Prompt:
-    """One stacked ask(): label, callback, optional dirty kind, optional selector."""
+    """One stacked ask(): label, callback, optional dirty kind, optional widgets."""
 
     label: str
     handler: object
     kind: str | None = None
     chooser: Chooser | None = None
+    picker: DateTimePicker | None = None
 
 
 def type_chooser() -> Chooser:
@@ -143,9 +275,9 @@ def dirty_chooser(title: str) -> Chooser:
     )
 
 
-def composer_height(*, chooser: Chooser | None, text_prompt: bool) -> int:
+def composer_height(*, chooser: Chooser | None, text_prompt: bool, picker: DateTimePicker | None = None) -> int:
     """Rows for the bottom composer: selector, labelled field, or idle hints."""
-    if chooser is not None:
+    if chooser is not None or picker is not None:
         return 3
     if text_prompt:
         return 3

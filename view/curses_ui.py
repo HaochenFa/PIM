@@ -17,7 +17,7 @@ from model.pir import HKT
 from view.keys import COMMAND, HELP as KEY_HELP, action_for_char, action_for_key_name
 from view.layout import HINTS, MENU, compute_geometry, format_list_row, visible_list_window
 from view.textwidth import clip, display_width, wrap
-from view.widgets import Chooser, composer_height
+from view.widgets import WEEKDAYS, Chooser, DateTimePicker, composer_height
 
 PAIR_TITLE = 1
 PAIR_OVERDUE = 2
@@ -62,6 +62,7 @@ HELP_LINES = (
     "",
     "When a selector is open: arrows move, Enter confirms, a letter or",
     "number picks, Esc cancels. You never have to type 'note' or 'yes'.",
+    "Dates: month grid + 15-minute times. Do not type ISO.",
     "",
     MENU,
     "",
@@ -158,14 +159,19 @@ class CursesUI:
 
     def _composer_h(self) -> int:
         chooser = self.term.current_chooser()
+        picker = self.term.current_picker()
         text_prompt = bool(self.term._prompts) or self.raw_command or bool(self.buffer)
-        return composer_height(chooser=chooser, text_prompt=text_prompt)
+        return composer_height(chooser=chooser, text_prompt=text_prompt, picker=picker)
 
     def _snapshot(self):
         height, width = self.stdscr.getmaxyx()
         now = self.term._now_dt()
         clock = now.strftime("%Y-%m-%d %H:%M") if isinstance(now, datetime) else ""
         chooser = self.term.current_chooser()
+        picker = self.term.current_picker()
+        pick = None
+        if picker is not None:
+            pick = (picker.day.isoformat(), picker.hour, picker.minute, picker.focus, picker.view.isoformat())
         return (
             self.term._snapshot(),
             self.buffer,
@@ -176,6 +182,7 @@ class CursesUI:
             self.print_scroll,
             self.choice_index,
             None if chooser is None else chooser.title,
+            pick,
             height,
             width,
             clock,
@@ -246,6 +253,7 @@ class CursesUI:
         self.stdscr.erase()
         height, width = self.stdscr.getmaxyx()
         chooser = self._sync_chooser()
+        picker = self.term.current_picker()
         geo = compute_geometry(height, width, self._composer_h())
         self.term.page_size = max(1, geo.list_h - 1)
         if geo.too_small:
@@ -267,12 +275,14 @@ class CursesUI:
         self._draw_alarm(geo, screen, width)
         self._draw_panes(geo, screen)
         self._draw_status(geo, screen, width)
-        self._draw_composer(geo, screen, chooser, width)
+        self._draw_composer(geo, screen, chooser, picker, width)
+        if picker is not None:
+            self._draw_picker(width, height, picker)
         if self.print_open and screen.print_text:
             self._draw_overlay(width, height, "PRINT", screen.print_text, self.print_scroll)
         if self.show_help:
             self._draw_overlay(width, height, "HELP", "\n".join(HELP_LINES), 0)
-        hide_cursor = bool(chooser) or self.show_help or self.print_open
+        hide_cursor = bool(chooser) or picker is not None or self.show_help or self.print_open
         if not hide_cursor and not (self.term._prompts or self.raw_command or self.buffer):
             hide_cursor = True
         try:
@@ -411,8 +421,12 @@ class CursesUI:
         self._fill(geo.status_y, self._attr(PAIR_MUTED))
         self._put(geo.status_y, 1, clip(text, width - 2), attr)
 
-    def _draw_composer(self, geo, screen, chooser: Chooser | None, width: int) -> None:
+    def _draw_composer(self, geo, screen, chooser: Chooser | None, picker: DateTimePicker | None, width: int) -> None:
         rule = self._attr(PAIR_TITLE)
+        if picker is not None:
+            self._frame(geo.composer_y, 0, geo.composer_h, width, picker.title, rule)
+            self._put(geo.composer_y + 1, 2, clip(picker.summary(), width - 4), self._attr(PAIR_SELECT, curses.A_BOLD))
+            return
         if chooser is not None:
             self._frame(geo.composer_y, 0, geo.composer_h, width, chooser.title, rule)
             self._draw_chips(geo.composer_y + 1, 2, max(1, width - 4), chooser, self.choice_index)
@@ -470,6 +484,71 @@ class CursesUI:
         extra = curses.A_REVERSE | curses.A_BOLD if selected else curses.A_BOLD
         return self._attr(pair, extra)
 
+    def _draw_picker(self, width: int, height: int, picker: DateTimePicker) -> None:
+        """Calendar overlay: month grid (Mon–Sun) and a 15-minute time list."""
+        box_w = min(width - 2, 58)
+        box_h = min(height - 2, 16)
+        y0 = max(0, (height - box_h) // 2)
+        x0 = max(0, (width - box_w) // 2)
+        self._frame(y0, x0, box_h, box_w, picker.title, self._attr(PAIR_TITLE))
+        inner_w = box_w - 2
+        month = f"<  {picker.month_title()}  >"
+        self._put(y0 + 1, x0 + 2, clip(month, 24), self._attr(PAIR_TITLE, curses.A_BOLD))
+        time_x = x0 + 28
+        if time_x + 10 < x0 + box_w:
+            time_attr = self._attr(PAIR_SELECT, curses.A_BOLD) if picker.focus == "time" else self._attr(PAIR_MUTED)
+            self._put(y0 + 1, time_x, "Time", time_attr)
+        header = " ".join(WEEKDAYS)
+        self._put(y0 + 2, x0 + 2, header, self._attr(PAIR_MUTED))
+        for row, week in enumerate(picker.weeks()):
+            y = y0 + 3 + row
+            if y >= y0 + box_h - 3:
+                break
+            x = x0 + 2
+            for day in week:
+                cell = f"{day.day:2d} "
+                in_month = day.month == picker.view.month
+                selected = day == picker.day
+                today = day == picker.today
+                if selected and picker.focus == "date":
+                    attr = self._attr(PAIR_SELECT, curses.A_BOLD)
+                elif today:
+                    attr = self._attr(PAIR_TITLE, curses.A_UNDERLINE)
+                elif in_month:
+                    attr = 0
+                else:
+                    attr = self._attr(PAIR_MUTED)
+                self._put(y, x, cell, attr)
+                x += 3
+        slots = picker.time_slots()
+        for index, (hour, minute) in enumerate(slots):
+            y = y0 + 2 + index
+            if y >= y0 + box_h - 3:
+                break
+            label = f"{hour:02d}:{minute:02d}"
+            selected = (hour, minute) == (picker.hour, picker.minute)
+            if selected and picker.focus == "time":
+                attr = self._attr(PAIR_SELECT, curses.A_BOLD)
+                label = "▸ " + label
+            elif selected:
+                attr = self._attr(PAIR_TITLE, curses.A_BOLD)
+                label = "· " + label
+            else:
+                attr = self._attr(PAIR_MUTED)
+                label = "  " + label
+            if time_x + 8 < x0 + box_w:
+                self._put(y, time_x, label, attr)
+        summary_y = y0 + box_h - 3
+        self._put(
+            summary_y,
+            x0 + 2,
+            clip("Using  " + picker.summary(), inner_w),
+            self._attr(PAIR_OK, curses.A_BOLD),
+        )
+        skip = "  n skip" if not picker.required else ""
+        hint = f"arrows day  Tab time  [ ] month  t today{skip}  Enter  Esc"
+        self._put(y0 + box_h - 2, x0 + 2, clip(hint, inner_w), self._attr(PAIR_MUTED))
+
     def _draw_overlay(self, width: int, height: int, title: str, body: str, scroll: int) -> None:
         inner_w = min(width - 4, max(40, width * 3 // 4))
         inner_h = min(height - 4, max(8, height * 3 // 4))
@@ -517,6 +596,9 @@ class CursesUI:
             self._safe(self.term._handle_interrupt)
             return
         self._sync_chooser()
+        if self.term.current_picker() is not None:
+            if self._handle_picker_key(ch):
+                return
         if self.term.current_chooser() is not None:
             if self._handle_chooser_key(ch):
                 return
@@ -545,6 +627,71 @@ class CursesUI:
                     self.print_scroll = 0
                 return
         self._edit(ch)
+
+    def _handle_picker_key(self, ch) -> bool:
+        """True when the calendar consumed the key."""
+        picker = self.term.current_picker()
+        if picker is None:
+            return False
+        if ch in (curses.KEY_ENTER, 10, 13, "\n", "\r"):
+            self._picker_submit(picker.value())
+            return True
+        if ch in (27, "\x1b"):
+            self._escape()
+            return True
+        if ch in ("\t", 9) or ch == getattr(curses, "KEY_BTAB", -1):
+            picker.toggle_focus()
+            return True
+        if isinstance(ch, str) and ch in {"t", "T"}:
+            picker.jump_today(self.term._now_dt())
+            return True
+        if isinstance(ch, str) and ch in {"n", "N"} and not picker.required:
+            self._picker_submit("none")
+            return True
+        if ch in ("[", "<") or ch == curses.KEY_PPAGE:
+            picker.move_month(-1)
+            return True
+        if ch in ("]", ">") or ch == curses.KEY_NPAGE:
+            picker.move_month(1)
+            return True
+        if picker.focus == "time":
+            if ch in (curses.KEY_UP, "k"):
+                picker.move_time(-15)
+                return True
+            if ch in (curses.KEY_DOWN, "j"):
+                picker.move_time(15)
+                return True
+            if ch in (curses.KEY_LEFT, "h"):
+                picker.move_time(-60)
+                return True
+            if ch in (curses.KEY_RIGHT, "l"):
+                picker.move_time(60)
+                return True
+            if ch in ("-", "_"):
+                picker.move_time(-1)
+                return True
+            if ch in ("+", "="):
+                picker.move_time(1)
+                return True
+            return True
+        if ch in (curses.KEY_LEFT, "h"):
+            picker.move_day(-1)
+            return True
+        if ch in (curses.KEY_RIGHT, "l"):
+            picker.move_day(1)
+            return True
+        if ch in (curses.KEY_UP, "k"):
+            picker.move_day(-7)
+            return True
+        if ch in (curses.KEY_DOWN, "j"):
+            picker.move_day(7)
+            return True
+        return True
+
+    def _picker_submit(self, value: str) -> None:
+        self.buffer = ""
+        self.cursor = 0
+        self._safe(lambda: self.term._handle_line(value))
 
     def _handle_chooser_key(self, ch) -> bool:
         """True when the selector consumed the key."""
