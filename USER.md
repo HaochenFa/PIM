@@ -29,7 +29,7 @@ Start: `python pim.py`
 | `load <path>` | Replace the collection. Non-`.pim` paths are rejected. Unsaved changes ask save / discard / cancel. |
 | `dismiss` | Hide the first listed alarm for this process (not written to the file) |
 | `help` | Command list |
-| `quit` | Unsaved changes ask save / discard / cancel. Closing input (Ctrl-D) is the same as quit; it does not silently drop unsaved changes. |
+| `quit` | Unsaved changes ask save / discard / cancel. Ctrl-C and closing input (Ctrl-D) are the same as quit; they do not silently drop unsaved changes. |
 
 ## Search criterion
 

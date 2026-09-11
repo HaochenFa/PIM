@@ -21,11 +21,15 @@ NO = {"n", "no"}
 SAVE = {"save", "s"}
 DISCARD = {"discard", "d"}
 CANCEL = {"cancel", "c"}
-DIRTY = "dirty"
+DIRTY_QUIT = "dirty-quit"
+DIRTY_LOAD = "dirty-load"
 
 
 class Terminal:
+    """Designed terminal: regions, field-driven wizards, in-process Alarm Alerts."""
+
     def __init__(self, app, stdin=None, stdout=None, now=None):
+        """`now` is injected for tests; omitted means Hong Kong Time wall clock in the View only."""
         self.app = app
         self.stdin = stdin if stdin is not None else sys.stdin
         self.stdout = stdout if stdout is not None else sys.stdout
@@ -37,6 +41,7 @@ class Terminal:
         self._last_snapshot = None
 
     def run(self):
+        """Event loop: daemon stdin thread + Queue.get(timeout=0.5). Only this thread calls the model."""
         start_stdin_reader(self.queue, self.stdin)
         self._running = True
         self.app.status = "Enter help for commands."
@@ -44,22 +49,29 @@ class Terminal:
         while self._running:
             self._paint(force=False)
             try:
-                line = self.queue.get(timeout=0.5)
-            except Empty:
-                continue
-            if line is None:
-                self._handle_eof()
+                try:
+                    line = self.queue.get(timeout=0.5)
+                except Empty:
+                    continue
+                if line is None:
+                    self._handle_eof()
+                    if not self._running:
+                        break
+                    self._paint(force=True)
+                    continue
+                try:
+                    self._handle_line(line)
+                except PIMError as exc:
+                    self.app.status = message_for(exc)
+                except OSError as exc:
+                    self.app.status = message_for(exc)
+                self._paint(force=True)
+            except KeyboardInterrupt:
+                # SIGINT is quit, not a silent drop of unsaved changes.
+                self._handle_interrupt()
                 if not self._running:
                     break
                 self._paint(force=True)
-                continue
-            try:
-                self._handle_line(line)
-            except PIMError as exc:
-                self.app.status = message_for(exc)
-            except OSError as exc:
-                self.app.status = message_for(exc)
-            self._paint(force=True)
 
     def _now_dt(self) -> datetime:
         if self._now is not None:
@@ -67,6 +79,7 @@ class Terminal:
         return datetime.now(HKT)
 
     def visible_due(self):
+        """Due alarms minus those dismissed in this process."""
         return [item for item in self.app.due_alarms(self._now_dt()) if item.key() not in self.dismissed]
 
     def _snapshot(self):
@@ -93,10 +106,16 @@ class Terminal:
         return changed
 
     def render(self):
-        text = "\n".join(self._layout()) + "\n"
+        """Clear and redraw regions. On a TTY the cursor stays on the prompt line."""
+        lines = self._layout()
+        body = "\n".join(lines[:-1])
+        prompt = lines[-1] if lines else "> "
         if self.stdout.isatty():
             self.stdout.write("\033[2J\033[H")
-        self.stdout.write(text)
+            # Prompt is the last characters so typed input sits on that line.
+            self.stdout.write(body + "\n" + prompt)
+        else:
+            self.stdout.write(body + "\n" + prompt + "\n")
         self.stdout.flush()
 
     def _prompt_label(self) -> str:
@@ -104,10 +123,16 @@ class Terminal:
             return self._prompts[-1][0]
         return "> "
 
+    def _dirty_kind(self) -> str | None:
+        if not self._prompts:
+            return None
+        return self._prompts[-1][2]
+
     def _is_dirty_prompt(self) -> bool:
-        return bool(self._prompts) and self._prompts[-1][2] == DIRTY
+        return self._dirty_kind() in {DIRTY_QUIT, DIRTY_LOAD}
 
     def ask(self, prompt: str, handler, kind: str | None = None):
+        """Push a one-line prompt. `kind` marks dirty save/discard/cancel prompts."""
         self._prompts.append((prompt, handler, kind))
 
     def _handle_line(self, line: str):
@@ -117,15 +142,32 @@ class Terminal:
             return
         self._handle_command(line)
 
+    def _handle_interrupt(self):
+        if self._is_dirty_prompt():
+            self.app.status = "enter save, discard, or cancel"
+            return
+        self._quit()
+
     def _handle_eof(self):
         if self._is_dirty_prompt():
-            self._prompts.clear()
-            self.app.status = "quit cancelled"
+            self._eof_on_dirty_prompt()
             return
         if self._prompts:
             self._prompts.clear()
             self.app.status = "command cancelled"
         self._quit()
+        if self._is_dirty_prompt() and not self.stdin.isatty():
+            self._eof_on_dirty_prompt()
+
+    def _eof_on_dirty_prompt(self):
+        if self.stdin.isatty():
+            self.app.status = "enter save, discard, or cancel"
+            return
+        if self._dirty_kind() == DIRTY_LOAD:
+            self.app.status = "load cancelled: unsaved changes require save, discard, or cancel"
+        else:
+            self.app.status = "unsaved changes; cannot quit without save, discard, or cancel"
+        self._running = False
 
     def _handle_command(self, line: str):
         raw = line.strip()
@@ -197,9 +239,10 @@ class Terminal:
             on_save=lambda: setattr(self, "_running", False),
             on_discard=lambda: setattr(self, "_running", False),
             on_cancel=lambda: setattr(self.app, "status", "quit cancelled"),
+            kind=DIRTY_QUIT,
         )
 
-    def _ask_dirty(self, on_save, on_discard, on_cancel):
+    def _ask_dirty(self, on_save, on_discard, on_cancel, kind):
         def handler(line: str):
             choice = line.strip().casefold()
             if choice in CANCEL:
@@ -216,9 +259,9 @@ class Terminal:
                 self.ask("path: ", lambda path: self._save_as(path.strip(), then=on_save))
                 return
             self.app.status = "enter save, discard, or cancel"
-            self._ask_dirty(on_save, on_discard, on_cancel)
+            self._ask_dirty(on_save, on_discard, on_cancel, kind)
 
-        self.ask("unsaved changes: save / discard / cancel: ", handler, DIRTY)
+        self.ask("unsaved changes: save / discard / cancel: ", handler, kind)
 
     def _save(self):
         if self.app.bound_path():
@@ -254,12 +297,18 @@ class Terminal:
             return
         if self.app.is_dirty():
             self._ask_dirty(
-                on_save=lambda: self.app.load(path),
-                on_discard=lambda: self.app.load(path, force=True),
+                on_save=lambda: self._commit_load(path, force=False),
+                on_discard=lambda: self._commit_load(path, force=True),
                 on_cancel=lambda: setattr(self.app, "status", "load cancelled"),
+                kind=DIRTY_LOAD,
             )
             return
-        self.app.load(path)
+        self._commit_load(path, force=False)
+
+    def _commit_load(self, path: str, force: bool = False) -> None:
+        if self.app.load(path, force=force):
+            # Ids are unique only inside one collection; a loaded file may reuse them.
+            self.dismissed.clear()
 
     def _start_create(self, type_name: str | None):
         if not type_name:
@@ -276,7 +325,16 @@ class Terminal:
         if pir is None:
             self.app.status = "no PIR selected"
             return
-        self._prompt_fields(type(pir).FIELDS, pir, self.app.modify)
+
+        def on_done(fields):
+            updated = self.app.modify(fields)
+            if updated is not None and updated is not pir and "alarms" in fields:
+                self._forget_dismissed(pir.id)
+
+        self._prompt_fields(type(pir).FIELDS, pir, on_done)
+
+    def _forget_dismissed(self, event_id: int) -> None:
+        self.dismissed = {key for key in self.dismissed if key[0] != event_id}
 
     def _field_prompt(self, spec, existing) -> str:
         if existing is None:

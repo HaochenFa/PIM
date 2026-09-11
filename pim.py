@@ -6,12 +6,10 @@ from view import Terminal
 
 
 def main():
+    """PIM() → App(pim) → Terminal(app) → run()."""
     pim = PIM()
     app = App(pim)
-    try:
-        Terminal(app).run()
-    except KeyboardInterrupt:
-        return
+    Terminal(app).run()
 
 
 if __name__ == "__main__":
