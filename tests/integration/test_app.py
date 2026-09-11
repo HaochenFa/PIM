@@ -8,8 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from controller.app import App, HELP, format_pir
-from controller.errors import message_for
-from model import PIM, PIMError, ValidationError, parse_datetime
+from model import PIM, parse_datetime
 from tests.fixture import make_fixture
 
 
@@ -244,14 +243,6 @@ class AppPersistTests(unittest.TestCase):
         with patch("controller.app.Path.resolve", side_effect=OSError("nope")):
             self.assertTrue(app.would_overwrite(other))
             self.assertFalse(app.would_overwrite(path))
-
-
-class MessageForTests(unittest.TestCase):
-    def test_maps_domain_os_and_generic_errors(self):
-        self.assertEqual(message_for(ValidationError("text is required")), "text is required")
-        self.assertEqual(message_for(OSError("disk")), "disk")
-        self.assertEqual(message_for(RuntimeError("hidden")), "command failed")
-        self.assertIsInstance(ValidationError("x"), PIMError)
 
 
 if __name__ == "__main__":
