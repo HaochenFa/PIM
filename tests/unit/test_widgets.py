@@ -3,9 +3,11 @@
 import unittest
 
 from view.widgets import (
+    alarm_amount_chooser,
     composer_height,
     dirty_chooser,
     type_chooser,
+    wrap_chips,
     yes_no_chooser,
 )
 from tests.unit.test_terminal import make_terminal
@@ -45,10 +47,25 @@ class ChooserTests(unittest.TestCase):
         self.assertEqual(chooser.pick_key("s"), 0)
         self.assertEqual(chooser.default, 2)
 
+    def test_amount_chooser_values_are_handler_payloads(self):
+        chooser = alarm_amount_chooser()
+        self.assertEqual(chooser.value_at(0), "0")
+        self.assertEqual(chooser.value_at(1), "15 minute")
+        self.assertEqual(chooser.value_at(2), "1 hour")
+        self.assertEqual(chooser.value_at(3), "1 day")
+        self.assertEqual(chooser.value_at(4), "other")
+
+    def test_wrap_chips_never_drops_an_option(self):
+        chooser = alarm_amount_chooser()
+        rows = wrap_chips(chooser, 0, 20)
+        flat = [cell.text for row in rows for cell in row]
+        self.assertEqual(len(flat), len(chooser.options))
+        self.assertGreater(len(rows), 1)
+
     def test_composer_is_taller_for_a_selector(self):
         self.assertEqual(composer_height(chooser=None, text_prompt=False), 2)
         self.assertEqual(composer_height(chooser=None, text_prompt=True), 3)
-        self.assertEqual(composer_height(chooser=type_chooser(), text_prompt=False), 3)
+        self.assertEqual(composer_height(chooser=type_chooser(), text_prompt=False), 4)
 
 
 class TerminalChooserTests(unittest.TestCase):
@@ -68,6 +85,25 @@ class TerminalChooserTests(unittest.TestCase):
         self.assertIn("text", term._prompt_label())
         term._handle_line("Shopping: Milk")
         self.assertEqual(app.calls[-1], ("create", "note", {"text": "Shopping: Milk"}))
+
+    def test_relative_alarm_opens_the_amount_selector(self):
+        app, term, _out = make_terminal()
+        term._handle_command("create event")
+        term._handle_line("lecture")
+        # start uses a picker; submit a datetime string as the line UI does
+        term._handle_line("2026-09-14 18:30")
+        term._handle_line("y")
+        term._handle_line("relative")
+        chooser = term.current_chooser()
+        self.assertIsNotNone(chooser)
+        self.assertEqual(chooser.value_at(0), "0")
+        term._handle_line("1 hour")
+        term._handle_line("n")
+        self.assertEqual(app.calls[-1][0], "create")
+        alarms = app.calls[-1][2]["alarms"]
+        self.assertEqual(len(alarms), 1)
+        self.assertEqual(alarms[0].amount, 1)
+        self.assertEqual(alarms[0].unit, "hour")
 
     def test_delete_selector_defaults_to_no(self):
         from model import Note

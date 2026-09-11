@@ -48,6 +48,10 @@ class FakeApp:
         self.modified = None
         self.save_raises = None
 
+    def set_status(self, text, kind="info"):
+        self.status = text
+        self.status_kind = kind
+
     def bound_path(self):
         return self._bound
 

@@ -61,3 +61,38 @@ class CursesHelperTests(unittest.TestCase):
         self.assertFalse(ui.raw_command)
         self.assertEqual(app.status, "command cancelled")
         self.assertTrue(term._running)
+
+    def test_search_syntax_error_keeps_the_typed_line(self):
+        app, term, _out = make_terminal()
+
+        def bad_search(line):
+            app.calls.append(("search", line))
+            app.set_status("search syntax error: type =", "err")
+            return False
+
+        app.search = bad_search
+        term.ask("criterion: ", lambda value: app.search(value))
+        ui = CursesUI(term, object())
+        ui.buffer = "type ="
+        ui.cursor = 6
+        ui._submit()
+        self.assertEqual(ui.buffer, "type =")
+        self.assertIn("criterion", term._prompt_label())
+        self.assertEqual(app.status_kind, "err")
+
+    def test_idle_escape_clears_an_active_search(self):
+        app, term, _out = make_terminal()
+        app._criterion = True
+        app._criterion_line = "type = note"
+        ui = CursesUI(term, object())
+        ui._escape()
+        self.assertIn(("clear",), app.calls)
+        self.assertFalse(app.has_criterion())
+
+    def test_idle_escape_without_search_does_not_quit(self):
+        app, term, _out = make_terminal()
+        term._running = True
+        ui = CursesUI(term, object())
+        ui._escape()
+        self.assertTrue(term._running)
+        self.assertNotIn(("clear",), app.calls)

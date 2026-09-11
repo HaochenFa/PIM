@@ -8,8 +8,16 @@ from view.layout import (
     MIN_HEIGHT,
     MIN_WIDTH,
     WIDE_WIDTH,
+    ResultRow,
+    TYPE_PIN,
     build_screen,
+    card_fields,
     compute_geometry,
+    format_list_header,
+    format_list_row,
+    list_pane_title,
+    picker_time_origin,
+    picker_weekday_row,
     text_lines,
     visible_list_window,
 )
@@ -104,6 +112,48 @@ class GeometryTests(unittest.TestCase):
         self.assertTrue(geo.too_small)
         geo = compute_geometry(24, MIN_WIDTH - 1)
         self.assertTrue(geo.too_small)
+
+    def test_list_row_uses_a_type_pin_and_time_gutter(self):
+        row = ResultRow(1, 4, "event", "COMP3211 lecture", "2026-09-14 18:30", "2026-09-14 18:30", True)
+        line = format_list_row(row, 60, short_time_col=True)
+        self.assertIn(TYPE_PIN["event"], line)
+        self.assertNotIn("event", line)
+        self.assertIn("COMP3211", line)
+        self.assertTrue(line.startswith(">"))
+        header = format_list_header(60, short_time_col=True)
+        self.assertIn("Name", header)
+        self.assertIn("Time", header)
+
+    def test_missing_time_is_a_dot(self):
+        row = ResultRow(1, 5, "contact", "Ada", "", "", False)
+        line = format_list_row(row, 50, short_time_col=True)
+        self.assertIn("·", line)
+
+    def test_card_fields_drop_id_and_type(self):
+        fields = card_fields((("Id", "4"), ("type", "event"), ("start", "t")))
+        self.assertEqual(fields, (("start", "t"),))
+
+    def test_list_title_includes_criterion_and_scroll(self):
+        note = Note(1, "x")
+        screen = build_screen(
+            bound_path=None,
+            dirty=False,
+            due=[],
+            result=[note],
+            selected_id=1,
+            selected=note,
+            has_criterion=True,
+            print_text="",
+            status="",
+            prompt="> ",
+            criterion_line='type = note',
+        )
+        self.assertEqual(screen.filter_label, "type = note")
+        title = list_pane_title(screen, first=0, visible=1)
+        self.assertIn("type = note", title)
+
+    def test_time_slots_start_below_weekday_header(self):
+        self.assertGreater(picker_time_origin(10), picker_weekday_row(10))
 
     def test_visible_window_keeps_selection_in_view(self):
         self.assertEqual(visible_list_window(3, 1, 10), 0)

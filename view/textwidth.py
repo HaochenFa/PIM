@@ -69,6 +69,51 @@ def pad(text: str, width: int) -> str:
     return fitted
 
 
+def caret_column(text: str, cursor: int) -> int:
+    """Display columns of ``text[:cursor]`` (CJK-safe caret x)."""
+    if cursor <= 0:
+        return 0
+    if cursor >= len(text):
+        return display_width(text)
+    return display_width(text[:cursor])
+
+
+def slice_columns(text: str, start: int, width: int) -> str:
+    """Return the substring that occupies ``width`` columns from ``start``."""
+    if width <= 0:
+        return ""
+    col = 0
+    out: list[str] = []
+    for ch in text.replace("\n", " ").replace("\r", " "):
+        w = char_width(ch)
+        if col + w <= start:
+            col += w
+            continue
+        if col < start:
+            col += w
+            continue
+        if display_width("".join(out)) + w > width:
+            break
+        out.append(ch)
+        col += w
+    return "".join(out)
+
+
+def input_window(text: str, cursor: int, width: int) -> tuple[str, int]:
+    """Visible field slice and caret x so the caret stays inside ``width``.
+
+    ``cursor`` is a code-point index. The returned x is a display column.
+    """
+    if width <= 0:
+        return "", 0
+    caret = caret_column(text, cursor)
+    start = 0
+    if caret >= width:
+        start = caret - width + 1
+    visible = slice_columns(text, start, width)
+    return visible, caret - start
+
+
 def wrap(text: str, width: int) -> list[str]:
     """Split ``text`` into lines that each fit in ``width`` columns."""
     if width <= 0:

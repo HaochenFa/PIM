@@ -17,9 +17,14 @@ MENU = (
     "save  save as  load  dismiss  help  quit"
 )
 HINTS = (
-    "↑↓ select  / search  c create  m modify  p print  x delete  "
-    "d dismiss  : command  ? help  q quit"
+    "↑↓ move   / search   c create   m modify   p print   x delete   "
+    "d dismiss   ? keys   q quit"
 )
+HINTS_FILTERED = HINTS + "   Esc clear"
+EMPTY_INVITE = "No PIRs — press c, then pick a type"
+SEARCH_EXAMPLE = 'type = event && description contains "COMP"'
+SEARCH_HINT = 'type = note  ·  description contains "…"  ·  deadline < …  ·  && || !'
+TYPE_PIN = {"note": "N", "task": "T", "event": "E", "contact": "C"}
 NAME_WIDTH = 24
 MIN_HEIGHT = 12
 MIN_WIDTH = 60
@@ -64,7 +69,11 @@ class Screen:
     detail: tuple[tuple[str, str], ...]
     print_text: str
     status: str
+    status_kind: str
     prompt: str
+    criterion_line: str | None
+    detail_heading: str
+    detail_kind: str
 
 
 @dataclass(frozen=True)
@@ -117,6 +126,8 @@ def build_screen(
     print_text: str,
     status: str,
     prompt: str,
+    status_kind: str = "info",
+    criterion_line: str | None = None,
 ) -> Screen:
     """Assemble a ``Screen`` from App-visible state and the current prompt."""
     bound = bound_path or "untitled"
@@ -146,20 +157,34 @@ def build_screen(
             )
         )
     detail: tuple[tuple[str, str], ...] = ()
+    heading = ""
+    kind = ""
     if selected is not None:
         detail = tuple(selected.detail_lines())
+        heading = selected.display_name
+        kind = selected.type_name
+    if criterion_line:
+        filter_label = criterion_line.strip()
+    elif has_criterion:
+        filter_label = "search"
+    else:
+        filter_label = "all"
     return Screen(
         title=title,
         bound=bound,
         dirty=dirty,
         alarms=alarms,
-        filter_label="search" if has_criterion else "all",
+        filter_label=filter_label,
         rows=tuple(rows),
         selected_id=selected_id,
         detail=detail,
         print_text=print_text or "",
         status=status or "",
+        status_kind=status_kind or "info",
         prompt=prompt,
+        criterion_line=criterion_line,
+        detail_heading=heading,
+        detail_kind=kind,
     )
 
 
@@ -336,13 +361,62 @@ def visible_list_window(row_count: int, selected_index: int | None, height: int)
 
 
 def format_list_row(row: ResultRow, width: int, *, short_time_col: bool) -> str:
-    """One Current Result row clipped to ``width`` columns."""
+    """One Current Result row: pin + name + time gutter, clipped to ``width``."""
     mark = ">" if row.selected else " "
+    pin = TYPE_PIN.get(row.type_name, "?")
     time_text = row.time_short if short_time_col else row.time_text
-    # 2+4+1+4+1+8+1 = 21 before the name; leave 16+ for time when possible.
-    name_w = max(8, min(NAME_WIDTH, width - 38))
+    if not time_text:
+        time_text = "·"
+    time_w = 16 if short_time_col else 25
+    time = pad(clip(time_text, time_w), time_w)
+    # mark + index + id + pin + gaps ≈ 16; time gutter on the right.
+    name_w = max(8, width - 16 - time_w)
     name = pad(clip(row.display_name, name_w), name_w)
-    line = (
-        f"{mark} {row.index:3d}  {row.pir_id:3d}  {row.type_name:<8}  {name}  {time_text}"
-    )
+    line = f"{mark}{row.index:3d} {row.pir_id:3d} {pin} {name} {time}"
     return clip(line, width)
+
+
+def format_list_header(width: int, *, short_time_col: bool) -> str:
+    """Column captions matching ``format_list_row``."""
+    dummy = ResultRow(0, 0, "note", "Name", "", "", False)
+    # Build against the same widths, then replace the data with labels.
+    time_w = 16 if short_time_col else 25
+    name_w = max(8, width - 16 - time_w)
+    name = pad("Name", name_w)
+    time = pad("Time", time_w)
+    line = f" {'#':>3} {'Id':>3} · {name} {time}"
+    return clip(line, width)
+
+
+def card_fields(detail: tuple[tuple[str, str], ...]) -> tuple[tuple[str, str], ...]:
+    """Detail rows without Id/type, which the pane title already shows."""
+    skip = {"id", "type"}
+    return tuple((key, value) for key, value in detail if key.casefold() not in skip)
+
+
+def list_pane_title(screen: Screen, *, first: int, visible: int) -> str:
+    """Current Result title: filter, then visible range when the list scrolls."""
+    count = len(screen.rows)
+    if count == 0:
+        shown = "none"
+    elif visible > 0 and visible < count:
+        last = min(count, first + visible)
+        shown = f"{first + 1}–{last} of {count}"
+    else:
+        shown = str(count)
+    return f"Current Result · {screen.filter_label} · {shown}"
+
+
+def idle_hints(has_criterion: bool) -> str:
+    """Footer when nothing is being asked."""
+    return HINTS_FILTERED if has_criterion else HINTS
+
+
+def picker_weekday_row(box_y: int) -> int:
+    """Row of Mo–Su. Time slots must start strictly below this."""
+    return box_y + 2
+
+
+def picker_time_origin(box_y: int) -> int:
+    """First clock-face row; kept below the weekday header."""
+    return box_y + 3

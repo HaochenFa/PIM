@@ -11,7 +11,7 @@ import sys
 from datetime import datetime
 from queue import Empty, Queue
 
-from controller.app import HELP
+from controller.app import HELP, STATUS_ERR, STATUS_INFO, STATUS_OK
 from controller.errors import message_for
 from model import AbsoluteAlarm, PIMError, RelativeAlarm
 from model.pir import KIND_ALARMS, KIND_DATETIME, HKT, pir_class
@@ -40,6 +40,7 @@ from view.widgets import (
     DATETIME_FORMAT,
     DateTimePicker,
     Prompt,
+    alarm_amount_chooser,
     alarm_kind_chooser,
     alarm_unit_chooser,
     dirty_chooser,
@@ -106,7 +107,7 @@ class Terminal:
         """Daemon stdin thread + Queue.get(timeout=0.5). Only this thread calls the model."""
         start_stdin_reader(self.queue, self.stdin)
         self._running = True
-        self.app.status = "Enter help for commands."
+        self._status("Enter help for commands.", STATUS_INFO)
         self._paint(force=True)
         while self._running:
             self._paint(force=False)
@@ -124,9 +125,9 @@ class Terminal:
                 try:
                     self._handle_line(line)
                 except PIMError as exc:
-                    self.app.status = message_for(exc)
+                    self._status(message_for(exc), STATUS_ERR)
                 except OSError as exc:
-                    self.app.status = message_for(exc)
+                    self._status(message_for(exc), STATUS_ERR)
                 self._paint(force=True)
             except KeyboardInterrupt:
                 # SIGINT is quit, not a silent drop of unsaved changes.
@@ -193,6 +194,8 @@ class Terminal:
             print_text=self.app.print_text,
             status=self.app.status or "",
             prompt=self._prompt_label(),
+            status_kind=getattr(self.app, "status_kind", STATUS_INFO),
+            criterion_line=self.app.criterion_line() if hasattr(self.app, "criterion_line") else None,
         )
 
     def apply_accelerator(self, action: str) -> None:
@@ -228,18 +231,42 @@ class Terminal:
         elif action == KEY_SAVE:
             self._save()
         elif action == KEY_HELP:
-            self.app.status = HELP
+            self._status(HELP, STATUS_INFO)
         elif action == QUIT:
             self._quit()
+
+    def _status(self, text: str, kind: str = STATUS_INFO) -> None:
+        """Set the status line. Fake App objects may only have ``status``."""
+        setter = getattr(self.app, "set_status", None)
+        if callable(setter):
+            setter(text, kind)
+            return
+        self.app.status = text
+        if hasattr(self.app, "status_kind"):
+            self.app.status_kind = kind
+
+    def idle_escape(self) -> None:
+        """Esc with no wizard: clear an active search; otherwise do nothing."""
+        if self._prompts:
+            self.cancel_prompt()
+            return
+        if self.app.has_criterion():
+            self.app.clear_search()
+            return
+        self._status("c create   / search   ? help", STATUS_INFO)
+
+    def retry_search_prompt(self) -> None:
+        """Re-open the criterion field after a syntax error (TTY only)."""
+        self.ask("criterion: ", lambda value: self.app.search(value))
 
     def cancel_prompt(self) -> None:
         """Esc: drop the current wizard, but not a dirty save/discard/cancel prompt."""
         if self._is_dirty_prompt():
-            self.app.status = "enter save, discard, or cancel"
+            self._status("enter save, discard, or cancel", STATUS_ERR)
             return
         if self._prompts:
             self._prompts.clear()
-            self.app.status = "command cancelled"
+            self._status("command cancelled", STATUS_INFO)
 
     def _selected_index(self) -> int | None:
         selected_id = self.app.selected_id()
@@ -253,7 +280,7 @@ class Terminal:
     def _select_index(self, index: int) -> None:
         result = self.app.current_result()
         if not result:
-            self.app.status = "Current Result is empty"
+            self._status("Current Result is empty", STATUS_INFO)
             return
         index = max(0, min(len(result) - 1, index))
         self.app.select_row(str(index + 1))
@@ -261,7 +288,7 @@ class Terminal:
     def _move_selection(self, delta: int) -> None:
         result = self.app.current_result()
         if not result:
-            self.app.status = "Current Result is empty"
+            self._status("Current Result is empty", STATUS_INFO)
             return
         current = self._selected_index()
         if current is None:
@@ -311,7 +338,7 @@ class Terminal:
 
     def _handle_interrupt(self):
         if self._is_dirty_prompt():
-            self.app.status = "enter save, discard, or cancel"
+            self._status("enter save, discard, or cancel", STATUS_ERR)
             return
         self._quit()
 
@@ -321,19 +348,25 @@ class Terminal:
             return
         if self._prompts:
             self._prompts.clear()
-            self.app.status = "command cancelled"
+            self._status("command cancelled", STATUS_INFO)
         self._quit()
         if self._is_dirty_prompt() and not self.stdin.isatty():
             self._eof_on_dirty_prompt()
 
     def _eof_on_dirty_prompt(self):
         if self.stdin.isatty():
-            self.app.status = "enter save, discard, or cancel"
+            self._status("enter save, discard, or cancel", STATUS_ERR)
             return
         if self._dirty_kind() == DIRTY_LOAD:
-            self.app.status = "load cancelled: unsaved changes require save, discard, or cancel"
+            self._status(
+                "load cancelled: unsaved changes require save, discard, or cancel",
+                STATUS_ERR,
+            )
         else:
-            self.app.status = "unsaved changes; cannot quit without save, discard, or cancel"
+            self._status(
+                "unsaved changes; cannot quit without save, discard, or cancel",
+                STATUS_ERR,
+            )
         self._running = False
 
     def _handle_command(self, line: str):
@@ -346,7 +379,7 @@ class Terminal:
         if lower in {"quit", "q", "exit"}:
             self._quit()
         elif lower == "help":
-            self.app.status = HELP
+            self._status(HELP, STATUS_INFO)
         elif lower == "clear":
             self.app.clear_search()
         elif lower == "dismiss":
@@ -387,16 +420,16 @@ class Terminal:
         elif raw.isdigit():
             self.app.select_row(raw)
         else:
-            self.app.status = f"unknown command: {raw}"
+            self._status(f"unknown command: {raw}", STATUS_ERR)
 
     def _dismiss(self):
         due = self.visible_due()
         if not due:
-            self.app.status = "no alarm to dismiss"
+            self._status("no alarm to dismiss", STATUS_INFO)
             return
         first = due[0]
         self.dismissed.add(first.key())
-        self.app.status = f"Dismissed alarm on Id {first.event_id}"
+        self._status(f"Dismissed alarm on Id {first.event_id}", STATUS_OK)
 
     def _quit(self):
         if not self.app.is_dirty():
@@ -405,7 +438,7 @@ class Terminal:
         self._ask_dirty(
             on_save=lambda: setattr(self, "_running", False),
             on_discard=lambda: setattr(self, "_running", False),
-            on_cancel=lambda: setattr(self.app, "status", "quit cancelled"),
+            on_cancel=lambda: self._status("quit cancelled", STATUS_INFO),
             kind=DIRTY_QUIT,
         )
 
@@ -425,7 +458,7 @@ class Terminal:
                     return
                 self.ask("path: ", lambda path: self._save_as(path.strip(), then=on_save))
                 return
-            self.app.status = "enter save, discard, or cancel"
+            self._status("enter save, discard, or cancel", STATUS_ERR)
             self._ask_dirty(on_save, on_discard, on_cancel, kind)
 
         self.ask(
@@ -443,7 +476,7 @@ class Terminal:
 
     def _save_as(self, path: str, then=None):
         if not path:
-            self.app.status = "path is required"
+            self._status("path is required", STATUS_ERR)
             return
         if self.app.would_overwrite(path):
 
@@ -451,7 +484,7 @@ class Terminal:
                 if answer.strip().casefold() in YES:
                     self._commit_save(path, then)
                 else:
-                    self.app.status = "save as cancelled"
+                    self._status("save as cancelled", STATUS_INFO)
 
             target = self.app.save_target(path)
             self.ask(
@@ -470,13 +503,13 @@ class Terminal:
 
     def _load(self, path: str):
         if not path:
-            self.app.status = "path is required"
+            self._status("path is required", STATUS_ERR)
             return
         if self.app.is_dirty():
             self._ask_dirty(
                 on_save=lambda: self._commit_load(path, force=False),
                 on_discard=lambda: self._commit_load(path, force=True),
-                on_cancel=lambda: setattr(self.app, "status", "load cancelled"),
+                on_cancel=lambda: self._status("load cancelled", STATUS_INFO),
                 kind=DIRTY_LOAD,
             )
             return
@@ -497,14 +530,14 @@ class Terminal:
             return
         cls = pir_class(type_name)
         if cls is None:
-            self.app.status = f"unknown PIR type: {type_name}"
+            self._status(f"unknown PIR type: {type_name}", STATUS_ERR)
             return
         self._prompt_fields(cls.FIELDS, None, lambda fields: self.app.create(type_name, fields))
 
     def _start_modify(self):
         pir = self.app.selected()
         if pir is None:
-            self.app.status = "no PIR selected"
+            self._status("no PIR selected", STATUS_ERR)
             return
 
         def on_done(fields):
@@ -602,7 +635,7 @@ class Terminal:
             if answer in YES:
                 self._collect_alarms([], capture)
                 return
-            self.app.status = "enter y or n"
+            self._status("enter y or n", STATUS_ERR)
             self.ask(
                 "replace alarms? [y/n]: ",
                 question,
@@ -624,7 +657,7 @@ class Terminal:
             if answer in YES:
                 self._one_alarm(alarms, on_done)
                 return
-            self.app.status = "enter y or n"
+            self._status("enter y or n", STATUS_ERR)
             self._collect_alarms(alarms, on_done)
 
         self.ask(
@@ -637,7 +670,11 @@ class Terminal:
         def kind(value: str):
             answer = value.strip().casefold()
             if answer in {"relative", "r"}:
-                self.ask("amount (0 = at start): ", amount)
+                self.ask(
+                    "amount (0 = at start): ",
+                    amount,
+                    chooser=alarm_amount_chooser(),
+                )
             elif answer in {"absolute", "a"}:
                 self.ask(
                     f"at ({DATETIME_FORMAT}, Hong Kong Time): ",
@@ -645,18 +682,32 @@ class Terminal:
                     picker=self._datetime_picker("Alarm at · Hong Kong Time", required=True),
                 )
             else:
-                self.app.status = "enter relative or absolute"
+                self._status("enter relative or absolute", STATUS_ERR)
                 self._one_alarm(alarms, on_done)
 
         def amount(value: str):
+            text = value.strip().casefold()
+            if text == "other":
+                self.ask("amount (0 = at start): ", amount)
+                return
+            presets = {
+                "15 minute": (15, "minute"),
+                "15 minutes": (15, "minute"),
+                "1 hour": (1, "hour"),
+                "1 day": (1, "day"),
+            }
+            if text in presets:
+                count, unit = presets[text]
+                unit_done(count, unit)
+                return
             try:
-                count = int(value.strip())
+                count = int(text)
             except (TypeError, ValueError):
-                self.app.status = "relative alarm amount must be an integer"
+                self._status("relative alarm amount must be an integer", STATUS_ERR)
                 self._one_alarm(alarms, on_done)
                 return
             if count < 0:
-                self.app.status = "relative alarm cannot be after start"
+                self._status("relative alarm cannot be after start", STATUS_ERR)
                 self._one_alarm(alarms, on_done)
                 return
             if count == 0:
@@ -673,7 +724,7 @@ class Terminal:
             try:
                 alarms.append(RelativeAlarm(count, unit.strip()))
             except PIMError as exc:
-                self.app.status = message_for(exc)
+                self._status(message_for(exc), STATUS_ERR)
                 self._one_alarm(alarms, on_done)
                 return
             self._collect_alarms(alarms, on_done)
@@ -682,7 +733,7 @@ class Terminal:
             try:
                 alarms.append(AbsoluteAlarm(value.strip()))
             except PIMError as exc:
-                self.app.status = message_for(exc)
+                self._status(message_for(exc), STATUS_ERR)
                 self._one_alarm(alarms, on_done)
                 return
             self._collect_alarms(alarms, on_done)
@@ -696,14 +747,14 @@ class Terminal:
     def _start_delete(self):
         pir = self.app.selected()
         if pir is None:
-            self.app.status = "no PIR selected"
+            self._status("no PIR selected", STATUS_ERR)
             return
 
         def confirm(value: str):
             if value.strip().casefold() in YES:
                 self.app.delete_selected()
             else:
-                self.app.status = "delete cancelled"
+                self._status("delete cancelled", STATUS_INFO)
 
         question = f"delete Id {pir.id} {pir.type_name} {pir.display_name!r}? [y/n]: "
         self.ask(

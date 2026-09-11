@@ -99,7 +99,7 @@ class TerminalAppPersistAlertTests(unittest.TestCase):
         self.assertIn("untitled*", lines)
         feed(term, "search type = note")
         lines = "\n".join(term._layout())
-        self.assertIn("Current Result (search)", lines)
+        self.assertIn("Current Result (type = note)", lines)
         self.assertIn("changed", lines)
         self.assertNotIn("Submit PIM", lines)
 

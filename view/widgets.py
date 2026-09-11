@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
 from model.pir import HKT
+from view.textwidth import display_width
 
 WEEKDAYS = ("Mo", "Tu", "We", "Th", "Fr", "Sa", "Su")
 MONTHS = (
@@ -275,10 +276,69 @@ def dirty_chooser(title: str) -> Chooser:
     )
 
 
-def composer_height(*, chooser: Chooser | None, text_prompt: bool, picker: DateTimePicker | None = None) -> int:
+@dataclass(frozen=True)
+class ChipCell:
+    """One painted option in a wrapped selector row."""
+
+    text: str
+    selected: bool
+    tone: str | None
+
+
+def wrap_chips(chooser: Chooser, index: int, width: int) -> list[list[ChipCell]]:
+    """Flow option chips onto as many rows as ``width`` needs. Never drop one."""
+    if width <= 0:
+        width = 1
+    rows: list[list[ChipCell]] = []
+    current: list[ChipCell] = []
+    used = 0
+    for i, option in enumerate(chooser.options):
+        key = option.key or str(i + 1)
+        body = f" {key} {option.label} "
+        w = display_width(body)
+        gap = 1 if current else 0
+        if current and used + gap + w > width:
+            rows.append(current)
+            current = []
+            used = 0
+            gap = 0
+        current.append(ChipCell(body, i == index, option.tone))
+        used += gap + w
+    if current:
+        rows.append(current)
+    return rows or [[]]
+
+
+def alarm_amount_chooser() -> Chooser:
+    """Common relative offsets. Values the amount handler already understands."""
+    return Chooser(
+        title="When should it ring?",
+        options=(
+            Choice("0", "At start", "0", "event"),
+            Choice("15 minute", "15 minutes", "1", "event"),
+            Choice("1 hour", "1 hour", "h", "event"),
+            Choice("1 day", "1 day", "d", "event"),
+            Choice("other", "Other…", "o", None),
+        ),
+        hint="← →  0 1 h d o  Enter  Esc",
+    )
+
+
+def composer_height(
+    *,
+    chooser: Chooser | None,
+    text_prompt: bool,
+    picker: DateTimePicker | None = None,
+    width: int = 80,
+    extra_hint: bool = False,
+) -> int:
     """Rows for the bottom composer: selector, labelled field, or idle hints."""
-    if chooser is not None or picker is not None:
+    if picker is not None:
         return 3
+    if chooser is not None:
+        inner = max(8, width - 4)
+        chip_rows = len(wrap_chips(chooser, 0, inner))
+        return 2 + max(1, chip_rows) + 1
     if text_prompt:
-        return 3
+        return 4 if extra_hint else 3
     return 2
