@@ -189,8 +189,10 @@ class CommandDispatchTests(unittest.TestCase):
         feed(term, "id 4")
         self.assertEqual(app.calls[-1], ("id", "4"))
         app._dirty = False
+        term._running = True
         feed(term, "q")
         self.assertFalse(term._running)
+        self.assertNotEqual(app.status, "unknown command: q")
         _, term2, _ = make_terminal()
         term2._running = True
         feed(term2, "exit")
@@ -386,18 +388,18 @@ class SaveLoadQuitTests(unittest.TestCase):
         self.assertFalse(term._running)
         self.assertEqual(app.calls[-1], ("save", None))
 
-    def test_eof_and_interrupt(self):
+    def test_eof_during_wizard_cancels_command(self):
         app, term, _out = make_terminal()
         term._running = True
         feed(term, "create")
         term._handle_eof()
         self.assertEqual(app.status, "command cancelled")
-        app._dirty = True
-        term._handle_interrupt()
-        # dirty prompt is up after _quit from eof? eof already called _quit
-        app._dirty = False
+        self.assertFalse(term._running)
+        self.assertEqual(term._prompts, [])
+
+    def test_interrupt_on_clean_session_stops(self):
+        app, term, _out = make_terminal()
         term._running = True
-        term._prompts.clear()
         term._handle_interrupt()
         self.assertFalse(term._running)
 

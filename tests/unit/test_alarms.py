@@ -42,8 +42,14 @@ class DueAlarmTests(unittest.TestCase):
 
     def test_due_alarms_does_not_use_wall_clock_or_mutate(self):
         pim = make_fixture()
+        pim.create_event(
+            "historical",
+            "2020-06-01T12:00:00+08:00",
+            [AbsoluteAlarm("2020-06-01T12:00:00+08:00")],
+        )
         before = pim.is_dirty()
-        pim.due_alarms(parse_datetime("2020-01-01T00:00:00+08:00"))
+        now = parse_datetime("2020-05-31T12:00:00+08:00")
+        self.assertEqual(pim.due_alarms(now), [])
         self.assertEqual(pim.is_dirty(), before)
 
     def test_relative_zero_is_at_start(self):
