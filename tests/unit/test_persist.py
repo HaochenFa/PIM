@@ -4,8 +4,10 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from model import DirtyLoadError, ExtensionError, FileFormatError, PIM, parse_datetime
+from model.pimfile import read_pim_file, write_pim_file
 from tests.fixture import make_fixture
 
 
@@ -132,6 +134,49 @@ class PersistTests(unittest.TestCase):
         )
         with self.assertRaises(FileFormatError):
             pim.load(unknown, force=True)
+
+    def test_pirs_must_be_a_list(self):
+        path = self.dir / "pirs.pim"
+        path.write_text('{"format":"pim/v1","next_id":1,"pirs":{}}', encoding="utf-8")
+        with self.assertRaises(FileFormatError):
+            read_pim_file(path)
+
+    def test_invalid_pir_in_file_is_format_error(self):
+        path = self.dir / "blank.pim"
+        path.write_text(
+            '{"format":"pim/v1","next_id":2,"pirs":[{"id":1,"type":"note","text":"  "}]}',
+            encoding="utf-8",
+        )
+        with self.assertRaises(FileFormatError):
+            read_pim_file(path)
+
+    def test_next_id_must_be_positive(self):
+        path = self.dir / "zero.pim"
+        path.write_text('{"format":"pim/v1","next_id":0,"pirs":[]}', encoding="utf-8")
+        with self.assertRaises(FileFormatError):
+            read_pim_file(path)
+
+    def test_next_id_is_raised_above_max_id(self):
+        path = self.dir / "bump.pim"
+        path.write_text(
+            '{"format":"pim/v1","next_id":1,"pirs":[{"id":5,"type":"note","text":"keep"}]}',
+            encoding="utf-8",
+        )
+        next_id, pirs = read_pim_file(path)
+        self.assertEqual(next_id, 6)
+        self.assertEqual(pirs[0].id, 5)
+
+    def test_write_failure_unlinks_temp_and_reraises(self):
+        pim = PIM()
+        pim.create_note("x")
+        path = self.dir / "fail.pim"
+        with patch("model.pimfile.os.replace", side_effect=OSError("disk full")):
+            with self.assertRaises(OSError):
+                pim.save(path)
+        with patch("model.pimfile.os.replace", side_effect=OSError("disk full")):
+            with patch("model.pimfile.os.unlink", side_effect=OSError("gone")):
+                with self.assertRaises(OSError):
+                    write_pim_file(path, 2, pim.all())
 
 
 if __name__ == "__main__":

@@ -26,7 +26,6 @@ tests/
     test_search.py
     test_persist.py
     test_alarms.py
-    test_coverage_gaps.py    # remaining model branches for 100%
   integration/
     test_app.py              # App ↔ PIM, no Terminal
   e2e/
