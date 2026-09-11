@@ -4,13 +4,38 @@ A single-user terminal Personal Information Manager. Four PIR types: Note, Task,
 
 Start: `python pim.py`
 
+On an interactive terminal this opens a full-screen UI (Python's standard `curses` library). Redirected input, tests, or `PIM_NO_CURSES=1` keep a line-oriented layout with the same commands.
+
 ## Screen
 
-- Title: bound file or `untitled`, `*` if unsaved
-- ALARMS: OVERDUE (effective time ≤ now) and SOON (next 15 minutes)
-- Current Result table (Id, type, Display Name, time)
-- DETAIL of the selection
-- Status line, command list, prompt
+- Title: bound file or `untitled`, `*` if unsaved; HKT clock on the right
+- Alarm sticky: OVERDUE (effective time ≤ now) and SOON (next 15 minutes). `d` dismisses the first one (this process only)
+- Current Result table (Id, type, Display Name, time) beside DETAIL of the selection
+- Status line, key hints, prompt
+
+On a narrow terminal the list stacks above the detail pane. If the window is smaller than about 60×12, widen it; `q` still quits.
+
+## Keys (full-screen UI)
+
+These run immediately when the prompt is empty (nothing typed, no wizard):
+
+| Key | What it does |
+|---|---|
+| `↑` `↓` / `j` `k` | Select the previous or next row of Current Result |
+| `PgUp` `PgDn` / `Home` `End` | Page, first row, last row |
+| `/` | Search: enter one criterion line |
+| `c` | Create: choose type, then fields |
+| `m` | Modify the selection |
+| `p` / `P` | Print the selection / print all of Current Result |
+| `x` or `Delete` | Delete the selection (`y`/`n`) |
+| `d` | Dismiss the first listed alarm |
+| `w` | Save (asks for a path if untitled) |
+| `:` | Type a full command (same verbs as below) |
+| `?` | Key help overlay |
+| `q` | Quit |
+| `Esc` | Cancel the current prompt or typed command. Does not drop unsaved changes |
+
+While a wizard is asking for a field, type the value and press Enter. Empty Enter skips an optional field, or keeps a field during modify.
 
 ## Commands
 
@@ -54,6 +79,19 @@ Relative: at start (`amount` 0) or N minutes/hours/days/weeks **before** start. 
 Invalid input does not change your data, does not print a traceback, and does not exit. The status line names the problem (missing field, bad Id, bad datetime, bad search syntax, wrong extension, no selection, attempt to change type).
 
 ## Examples
+
+Full-screen keys (prompt empty):
+
+```
+c
+note
+Shopping: Milk
+/ type = event && description contains "COMP"
+↓
+m
+```
+
+The same session as typed commands (`:` first in the full-screen UI, or any line-oriented session):
 
 ```
 create note

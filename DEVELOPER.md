@@ -5,7 +5,7 @@ Platform: **macOS**. Language: **Python 3.12** (the version this tree was built 
 ## Layout
 
 - `model/` — Working Collection, PIR types, Search Criterion, `.pim` JSON. This is the unit-test surface.
-- `view/` — designed terminal UI and in-process Alarm Alerts (stdin thread + 500ms tick).
+- `view/` — designed terminal UI and in-process Alarm Alerts. Interactive TTY: stdlib `curses` (`get_wch` + 500ms timeout). Tests and redirected stdio: stdin-reader thread + 500ms `Queue.get`.
 - `controller/` — one completed user action → `model.PIM`.
 - `pim.py` — composition root.
 - `tests/unit/` — `model` (assignment surface, 100% lines), `controller.App`, `view.Terminal`.
@@ -24,6 +24,14 @@ Run:
 ```bash
 python pim.py
 ```
+
+The process uses `_curses` when both stdin and stdout are TTYs (macOS Terminal / iTerm). To force the line UI:
+
+```bash
+PIM_NO_CURSES=1 python pim.py
+```
+
+Unit, integration, and e2e tests inject non-TTY streams, so they never enter the curses loop. Do not drive `curses.initscr` from `unittest`.
 
 Debug:
 
