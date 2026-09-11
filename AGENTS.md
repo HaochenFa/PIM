@@ -98,11 +98,15 @@ Use glossary terms as written. Forbidden substitutions:
 ## Testing rules
 
 - Framework: `unittest` (the brief’s example). Automatically executable, all passing.
-- Test **`model` only** unless the user explicitly asks for more. The brief grades model unit tests.
+- Three layers, all stdlib:
+  - **Unit** (`tests/unit`): `model` only — the graded surface. `coverage_report.py` must report **100%** of countable `model/` lines.
+  - **Integration** (`tests/integration`): `controller.App` against `model.PIM` (no Terminal, no threads).
+  - **E2E** (`tests/e2e`): scripted stdin through `Terminal.run()` with injected `stdin` / `stdout` / `now`.
 - Each test must state the behaviour it exercises (name or comment) and assert expected results.
 - Cover: four types create/validate/modify/delete; Id stability; contains / unqualified contains / missing-field time / and-or-not / multi-alarm; save/load round-trip; `due_alarms` with injected `now`; dirty flag; corrupt file does not clobber memory.
 - Prefer the fixture in `docs/ACCEPTANCE.md` section 4.
-- Line-coverage report for `model/` belongs at the source root when asked to produce it.
+- Line-coverage report for `model/` belongs at the source root (`python coverage_report.py`).
+- Pre-commit (`hooks/pre-commit`): unit tests at 100% `model/` coverage, then integration, then e2e, or the commit is refused. `git config core.hooksPath hooks`. Bypass: `git commit --no-verify`.
 
 ## Agent working rules
 
