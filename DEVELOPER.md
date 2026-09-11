@@ -5,7 +5,7 @@ Platform: **macOS**. Language: **Python 3.12** (the version this tree was built 
 ## Layout
 
 - `model/` — Working Collection, PIR types, Search Criterion, `.pim` JSON. This is the unit-test surface.
-- `view/` — designed terminal UI and in-process Alarm Alerts. Interactive TTY: stdlib `curses` (`get_wch` + 500ms timeout). Tests and redirected stdio: stdin-reader thread + 500ms `Queue.get`.
+- `view/` — designed terminal UI and in-process Alarm Alerts. Interactive TTY: stdlib `curses` (`get_wch` + 500ms timeout), titled panes, and `Chooser` widgets for closed answers. Tests and redirected stdio: stdin-reader thread + 500ms `Queue.get` (typed answers, no curses).
 - `controller/` — one completed user action → `model.PIM`.
 - `pim.py` — composition root.
 - `tests/unit/` — `model` (assignment surface, 100% lines), `controller.App`, `view.Terminal`.

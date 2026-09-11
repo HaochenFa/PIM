@@ -8,12 +8,29 @@ On an interactive terminal this opens a full-screen UI (Python's standard `curse
 
 ## Screen
 
-- Title: bound file or `untitled`, `*` if unsaved; HKT clock on the right
-- Alarm sticky: OVERDUE (effective time ≤ now) and SOON (next 15 minutes). `d` dismisses the first one (this process only)
-- Current Result table (Id, type, Display Name, time) beside DETAIL of the selection
-- Status line, key hints, prompt
+Each region is a widget with its own title:
+
+- Title bar: bound file or `untitled`, `*` if unsaved; HKT clock
+- Alarms: OVERDUE (effective time ≤ now) and SOON (next 15 minutes). `d` dismisses the first one (this process only)
+- Current Result (left): the list you search and select
+- Detail (right): the selected PIR
+- Composer (bottom): idle hints, a **selector**, or a labelled field
 
 On a narrow terminal the list stacks above the detail pane. If the window is smaller than about 60×12, widen it; `q` still quits.
+
+## Selectors (full-screen UI)
+
+When the answer is one of a few values, the composer becomes a selector. You do **not** type the word.
+
+| Situation | Options | How |
+|---|---|---|
+| Create | Note · Task · Event · Contact | `←` `→`, or `1`–`4`, or `n` `t` `e` `c`, then Enter. A letter confirms immediately. |
+| Delete, overwrite, add/replace alarms | Yes · No | Default is **No**. `y` / `n` or arrows + Enter. |
+| Alarm kind | Relative · Absolute | `r` / `a` |
+| Alarm unit | Minute · Hour · Day · Week | `m` `h` `d` `w` |
+| Unsaved changes | Save · Discard · Cancel | Default is **Cancel**. `s` / `d` / `c` |
+
+Free text (note body, names, dates, search criterion, file path) still uses a labelled field. Empty Enter skips an optional field, or keeps a field during modify.
 
 ## Keys (full-screen UI)
 
@@ -24,7 +41,7 @@ These run immediately when the prompt is empty (nothing typed, no wizard):
 | `↑` `↓` / `j` `k` | Select the previous or next row of Current Result |
 | `PgUp` `PgDn` / `Home` `End` | Page, first row, last row |
 | `/` | Search: enter one criterion line |
-| `c` | Create: choose type, then fields |
+| `c` | Create: open the type selector, then fields |
 | `m` | Modify the selection |
 | `p` / `P` | Print the selection / print all of Current Result |
 | `x` or `Delete` | Delete the selection (`y`/`n`) |
