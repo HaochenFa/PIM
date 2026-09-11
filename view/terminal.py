@@ -1,7 +1,12 @@
-"""Designed terminal UI: regions, field-driven wizards, in-process Alarm Alerts."""
+"""Designed terminal UI: regions, field-driven wizards, in-process Alarm Alerts.
+
+On a TTY this View runs a stdlib curses session. Tests and redirected
+stdio keep the line-oriented fallback so stdin/stdout can be injected.
+"""
 
 from __future__ import annotations
 
+import os
 import sys
 from datetime import datetime
 from queue import Empty, Queue
@@ -9,13 +14,29 @@ from queue import Empty, Queue
 from controller.app import HELP
 from controller.errors import message_for
 from model import AbsoluteAlarm, PIMError, RelativeAlarm
-from model.pir import KIND_ALARMS, HKT, format_datetime, pir_class
+from model.pir import KIND_ALARMS, HKT, pir_class
+from view.keys import (
+    CREATE,
+    DELETE,
+    DISMISS,
+    HELP as KEY_HELP,
+    MODIFY,
+    PRINT,
+    PRINT_ACTIONS,
+    PRINT_ALL,
+    QUIT,
+    SAVE as KEY_SAVE,
+    SEARCH,
+    SELECT_DOWN,
+    SELECT_FIRST,
+    SELECT_LAST,
+    SELECT_PAGE_DOWN,
+    SELECT_PAGE_UP,
+    SELECT_UP,
+)
+from view.layout import MENU, Screen, build_screen, text_lines
 from view.stdin_reader import start_stdin_reader
 
-MENU = (
-    "create  search  clear  modify  print  print all  delete  "
-    "save  save as  load  dismiss  help  quit"
-)
 YES = {"y", "yes"}
 NO = {"n", "no"}
 SAVE = {"save", "s"}
@@ -39,9 +60,40 @@ class Terminal:
         self._prompts: list[tuple[str, object, str | None]] = []
         self._running = False
         self._last_snapshot = None
+        self.page_size = 10
+
+    def _use_curses(self) -> bool:
+        """True when both streams are TTYs, curses imports, and PIM_NO_CURSES is unset."""
+        flag = os.environ.get("PIM_NO_CURSES", "").strip().casefold()
+        if flag and flag not in {"0", "false", "no"}:
+            return False
+        try:
+            if not self.stdin.isatty() or not self.stdout.isatty():
+                return False
+        except Exception:
+            return False
+        try:
+            import curses  # noqa: F401
+        except ImportError:
+            return False
+        return True
 
     def run(self):
-        """Event loop: daemon stdin thread + Queue.get(timeout=0.5). Only this thread calls the model."""
+        """Event loop. TTY uses curses; otherwise a stdin-reader thread + 500ms tick."""
+        if self._use_curses():
+            try:
+                import curses
+
+                from view.curses_ui import run_curses
+
+                run_curses(self)
+                return
+            except (curses.error, ImportError, OSError):
+                pass
+        self._run_line_loop()
+
+    def _run_line_loop(self):
+        """Daemon stdin thread + Queue.get(timeout=0.5). Only this thread calls the model."""
         start_stdin_reader(self.queue, self.stdin)
         self._running = True
         self.app.status = "Enter help for commands."
@@ -117,6 +169,95 @@ class Terminal:
         else:
             self.stdout.write(body + "\n" + prompt + "\n")
         self.stdout.flush()
+
+    def screen(self) -> Screen:
+        """Build the shared screen model from the App and the current prompt."""
+        return build_screen(
+            bound_path=self.app.bound_path(),
+            dirty=self.app.is_dirty(),
+            due=self.visible_due(),
+            result=self.app.current_result(),
+            selected_id=self.app.selected_id(),
+            selected=self.app.selected(),
+            has_criterion=self.app.has_criterion(),
+            print_text=self.app.print_text,
+            status=self.app.status or "",
+            prompt=self._prompt_label(),
+        )
+
+    def apply_accelerator(self, action: str) -> None:
+        """Run an empty-prompt key action. Unknown names are ignored."""
+        if action not in PRINT_ACTIONS:
+            self.app.clear_print()
+        if action == SELECT_UP:
+            self._move_selection(-1)
+        elif action == SELECT_DOWN:
+            self._move_selection(1)
+        elif action == SELECT_PAGE_UP:
+            self._move_selection(-self.page_size)
+        elif action == SELECT_PAGE_DOWN:
+            self._move_selection(self.page_size)
+        elif action == SELECT_FIRST:
+            self._select_index(0)
+        elif action == SELECT_LAST:
+            self._select_index(len(self.app.current_result()) - 1)
+        elif action == SEARCH:
+            self._handle_command("search")
+        elif action == CREATE:
+            self._start_create(None)
+        elif action == MODIFY:
+            self._start_modify()
+        elif action == PRINT:
+            self.app.print_selected()
+        elif action == PRINT_ALL:
+            self.app.print_all()
+        elif action == DELETE:
+            self._start_delete()
+        elif action == DISMISS:
+            self._dismiss()
+        elif action == KEY_SAVE:
+            self._save()
+        elif action == KEY_HELP:
+            self.app.status = HELP
+        elif action == QUIT:
+            self._quit()
+
+    def cancel_prompt(self) -> None:
+        """Esc: drop the current wizard, but not a dirty save/discard/cancel prompt."""
+        if self._is_dirty_prompt():
+            self.app.status = "enter save, discard, or cancel"
+            return
+        if self._prompts:
+            self._prompts.clear()
+            self.app.status = "command cancelled"
+
+    def _selected_index(self) -> int | None:
+        selected_id = self.app.selected_id()
+        if selected_id is None:
+            return None
+        for index, pir in enumerate(self.app.current_result()):
+            if pir.id == selected_id:
+                return index
+        return None
+
+    def _select_index(self, index: int) -> None:
+        result = self.app.current_result()
+        if not result:
+            self.app.status = "Current Result is empty"
+            return
+        index = max(0, min(len(result) - 1, index))
+        self.app.select_row(str(index + 1))
+
+    def _move_selection(self, delta: int) -> None:
+        result = self.app.current_result()
+        if not result:
+            self.app.status = "Current Result is empty"
+            return
+        current = self._selected_index()
+        if current is None:
+            self._select_index(0 if delta > 0 else len(result) - 1)
+            return
+        self._select_index(current + delta)
 
     def _prompt_label(self) -> str:
         if self._prompts:
@@ -474,55 +615,5 @@ class Terminal:
         self.ask(f"delete Id {pir.id} {pir.type_name} {pir.display_name!r}? [y/n]: ", confirm)
 
     def _layout(self) -> list[str]:
-        bound = self.app.bound_path() or "untitled"
-        dirty = "*" if self.app.is_dirty() else ""
-        title = f"PIM  {bound}{dirty}"
-        due = self.visible_due()
-        alarm_lines = ["ALARMS"]
-        if due:
-            for item in due:
-                when = format_datetime(item.at)
-                alarm_lines.append(
-                    f"  {item.status:<7}  Id {item.event_id}  {item.description}  {when}"
-                )
-            alarm_lines.append("  (dismiss)")
-        else:
-            alarm_lines.append("  (none)")
-        search = "search" if self.app.has_criterion() else "all"
-        rows = [f"Current Result ({search})", "    #   Id  Type      Name                      Time"]
-        selected_id = self.app.selected_id()
-        result = self.app.current_result()
-        if not result:
-            rows.append("    (empty)")
-        for index, pir in enumerate(result, 1):
-            mark = ">" if pir.id == selected_id else " "
-            name = pir.display_name.replace("\n", " ")
-            if len(name) > 24:
-                name = name[:21] + "..."
-            time_text = format_datetime(pir.relevant_time()) if pir.relevant_time() else ""
-            rows.append(f"{mark} {index:3d}  {pir.id:3d}  {pir.type_name:<8}  {name:<24}  {time_text}")
-        detail = ["DETAIL"]
-        selected = self.app.selected()
-        if selected is None:
-            detail.append("  (no selection)")
-        else:
-            for key, value in selected.detail_lines():
-                detail.append(f"  {key}: {value}")
-        if self.app.print_text:
-            detail.append("PRINT")
-            for line in self.app.print_text.splitlines():
-                detail.append(f"  {line}")
-        divider = "-" * 76
-        return [
-            title,
-            divider,
-            *alarm_lines,
-            divider,
-            *rows,
-            divider,
-            *detail,
-            divider,
-            self.app.status or "",
-            MENU,
-            self._prompt_label(),
-        ]
+        """Text fallback: one region per line, prompt last."""
+        return text_lines(self.screen())

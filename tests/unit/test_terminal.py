@@ -107,6 +107,12 @@ class FakeApp:
 
     def select_row(self, number):
         self.calls.append(("row", number))
+        try:
+            index = int(number)
+        except (TypeError, ValueError):
+            return
+        if 1 <= index <= len(self._result):
+            self._selected = self._result[index - 1]
 
     def select_id(self, pir_id):
         self.calls.append(("id", pir_id))
@@ -493,3 +499,80 @@ class LayoutAndPaintTests(unittest.TestCase):
         feed(term, "quit")
         term._handle_interrupt()
         self.assertEqual(app.status, "enter save, discard, or cancel")
+
+
+class AcceleratorAndCursesGateTests(unittest.TestCase):
+    def test_arrows_move_selection_in_current_result(self):
+        app, term, _out = make_terminal()
+        app._result = [Note(1, "a"), Note(2, "b"), Note(3, "c")]
+        term.apply_accelerator("select_down")
+        self.assertEqual(app.calls[-1], ("row", "1"))
+        self.assertEqual(app.selected_id(), 1)
+        term.apply_accelerator("select_down")
+        self.assertEqual(app.selected_id(), 2)
+        term.apply_accelerator("select_up")
+        self.assertEqual(app.selected_id(), 1)
+        term.apply_accelerator("select_last")
+        self.assertEqual(app.selected_id(), 3)
+        term.apply_accelerator("select_first")
+        self.assertEqual(app.selected_id(), 1)
+
+    def test_empty_result_move_sets_status(self):
+        app, term, _out = make_terminal()
+        term.apply_accelerator("select_down")
+        self.assertEqual(app.status, "Current Result is empty")
+
+    def test_save_accelerator_asks_path_when_untitled(self):
+        app, term, _out = make_terminal()
+        term.apply_accelerator("save")
+        self.assertEqual(term._prompt_label(), "path: ")
+        self.assertNotIn(("save", None), app.calls)
+
+    def test_create_and_search_accelerators_open_prompts(self):
+        app, term, _out = make_terminal()
+        term.apply_accelerator("create")
+        self.assertIn("type", term._prompt_label())
+        term.cancel_prompt()
+        self.assertEqual(app.status, "command cancelled")
+        self.assertEqual(term._prompts, [])
+        term.apply_accelerator("search")
+        self.assertEqual(term._prompt_label(), "criterion: ")
+
+    def test_slash_verbs_still_work_after_cancel(self):
+        app, term, _out = make_terminal()
+        term.apply_accelerator("search")
+        feed(term, "type = note")
+        self.assertEqual(app.calls[-1], ("search", "type = note"))
+
+    def test_use_curses_false_when_not_a_tty(self):
+        _app, term, _out = make_terminal()
+        self.assertFalse(term._use_curses())
+
+    def test_use_curses_false_when_env_disables_it(self):
+        import os
+
+        class Tty:
+            def isatty(self):
+                return True
+
+        app = FakeApp()
+        term = Terminal(app, stdin=Tty(), stdout=Tty())
+        previous = os.environ.get("PIM_NO_CURSES")
+        os.environ["PIM_NO_CURSES"] = "1"
+        try:
+            self.assertFalse(term._use_curses())
+        finally:
+            if previous is None:
+                os.environ.pop("PIM_NO_CURSES", None)
+            else:
+                os.environ["PIM_NO_CURSES"] = previous
+
+    def test_esc_on_dirty_prompt_does_not_drop_changes(self):
+        app, term, _out = make_terminal()
+        app._dirty = True
+        term._running = True
+        feed(term, "quit")
+        term.cancel_prompt()
+        self.assertEqual(app.status, "enter save, discard, or cancel")
+        self.assertTrue(term._prompts)
+        self.assertTrue(term._running)
