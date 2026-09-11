@@ -8,15 +8,15 @@ On an interactive terminal this opens a full-screen UI (Python's standard `curse
 
 ## Screen
 
-Each region is a widget with its own title:
+The full-screen UI is a lecture diary: a quiet page, a loud alarm stamp, a timetable of Current Result, and the selected PIR as a card.
 
 - Title bar: bound file or `untitled`, `*` if unsaved; HKT clock
-- Alarms: OVERDUE (effective time ≤ now) and SOON (next 15 minutes). `d` dismisses the first one (this process only)
-- Current Result (left): the list you search and select
-- Detail (right): the selected PIR
+- Alarm stamp: OVERDUE (effective time ≤ now) or SOON (next 15 minutes). `d` dismisses the first one (this process only). Quiet `Alarms · none` when nothing is due
+- Current Result (left): `#`, Id, type pin (`N` `T` `E` `C`), Display Name, time. The pane title shows the search criterion when a filter is on
+- Detail (right): Display Name, then fields. Id and type are in the pane title
 - Composer (bottom): idle hints, a **selector**, or a labelled field
 
-On a narrow terminal the list stacks above the detail pane. If the window is smaller than about 60×12, widen it; `q` still quits.
+On a narrow terminal the list stacks above the detail pane. If the window is smaller than about 60×12, widen it; `q` still quits. Colour uses the terminal's palette (256-colour when available); without colour, selection and the title are reverse video.
 
 ## Selectors (full-screen UI)
 
@@ -27,6 +27,7 @@ When the answer is one of a few values, the composer becomes a selector. You do 
 | Create | Note · Task · Event · Contact | `←` `→`, or `1`–`4`, or `n` `t` `e` `c`, then Enter. A letter confirms immediately. |
 | Delete, overwrite, add/replace alarms | Yes · No | Default is **No**. `y` / `n` or arrows + Enter. |
 | Alarm kind | Relative · Absolute | `r` / `a` |
+| Relative when | At start · 15 minutes · 1 hour · 1 day · Other… | `0` `1` `h` `d` `o`. Other still asks for a number, then a unit |
 | Alarm unit | Minute · Hour · Day · Week | `m` `h` `d` `w` |
 | Unsaved changes | Save · Discard · Cancel | Default is **Cancel**. `s` / `d` / `c` |
 
@@ -61,7 +62,8 @@ These run immediately when the prompt is empty (nothing typed, no wizard):
 |---|---|
 | `↑` `↓` / `j` `k` | Select the previous or next row of Current Result |
 | `PgUp` `PgDn` / `Home` `End` | Page, first row, last row |
-| `/` | Search: enter one criterion line |
+| `/` | Search: enter one criterion line. An example is shown while the field is empty. A syntax error keeps the typed line |
+| `Esc` | Cancel the current prompt or typed command. With nothing being asked, clear the search filter. Does not drop unsaved changes |
 | `c` | Create: open the type selector, then fields |
 | `m` | Modify the selection |
 | `p` / `P` | Print the selection / print all of Current Result |
@@ -71,7 +73,6 @@ These run immediately when the prompt is empty (nothing typed, no wizard):
 | `:` | Type a full command (same verbs as below) |
 | `?` | Key help overlay |
 | `q` | Quit |
-| `Esc` | Cancel the current prompt or typed command. Does not drop unsaved changes |
 
 While a wizard is asking for a field, type the value and press Enter. Empty Enter skips an optional field, or keeps a field during modify.
 
@@ -80,8 +81,8 @@ While a wizard is asking for a field, type the value and press Enter. Empty Ente
 | Command | What it does |
 |---|---|
 | `create` / `create note\|task\|event\|contact` | Prompt for fields. Empty enter skips an optional field. After an Event start, you may add several alarms. |
-| `search <criterion>` | Replace Current Result with matches. `search` alone then asks for the criterion. |
-| `clear` | Show the whole collection again |
+| `search <criterion>` | Replace Current Result with matches and select the first hit. `search` alone then asks for the criterion. |
+| `clear` | Show the whole collection again (`Esc` in the full-screen UI when idle) |
 | `<n>` | Select row n of Current Result (not an identity) |
 | `id <n>` | Select by Id |
 | `modify` | Prompt for fields of the selection. Empty enter keeps a field. `none` clears an optional field. |

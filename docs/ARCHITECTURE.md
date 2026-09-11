@@ -49,7 +49,9 @@ view/
   __init__.py
   terminal.py          # wizards, Alarm Alert, dismissed set, run() branch
   curses_ui.py         # TTY: stdlib curses session
+  theme.py             # named colour roles (256 / 8 / mono)
   layout.py            # shared screen model (curses and line UI)
+  widgets.py           # selectors and calendar
   stdin_reader.py      # non-TTY: puts one line string on a Queue
 controller/
   __init__.py
