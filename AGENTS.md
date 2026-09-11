@@ -163,6 +163,23 @@ Do **not** split a single atomic behaviour across commits (e.g. a `model` change
 
 Order dependent commits so each leaves `python -m unittest` green.
 
+### Pull request summary
+
+The PR **title** follows Conventional Commits (`feat(PIM): …`). The PR **body** is the reviewer’s map of the change: detailed enough to understand intent, scope, and risk without reading every hunk; specific enough that a reviewer knows what to try and what is *not* in the PR.
+
+Do not paste the commit list as the whole summary. Do not write a one-line body (`implement PIM`, `see commits`). English, same as other course artefacts this agent writes.
+
+Required sections, in this order:
+
+1. **Summary** — what shipped and why (user stories, ADRs, or the defect). Two to five sentences. Name the user-visible behaviour.
+2. **What changed** — bullets by layer (`model`, `view`/`controller`, tests, docs). Call out behaviour a reviewer must not miss (atomic failure, dirty load/quit, Current Result vs `print all`, injected `now`).
+3. **How to check** — exact commands (`python -m unittest`, `python pim.py`, demo steps from `docs/ACCEPTANCE.md` §6). State the platform if it matters (macOS).
+4. **Out of scope** — explicit: extra features not in Appendix B, and course artefacts this PR does not claim (SRS, videos, Honour Declaration) when that applies.
+
+Optional when useful: **Risks / follow-ups** (known gaps, coverage holes, UI edges). **Commits** as a short list only after the summary, not instead of it.
+
+The body must stay true: do not claim tests, manuals, or stories that the diff does not contain. If the PR is a draft, say what still has to land before Ready.
+
 ## Comments and docstrings
 
 Code the agent writes or substantially edits must be documented in **English**:
