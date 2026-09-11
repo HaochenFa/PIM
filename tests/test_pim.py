@@ -1,6 +1,8 @@
 """Working Collection: Id stability, delete, dirty, failed create is atomic."""
 
+import tempfile
 import unittest
+from pathlib import Path
 
 from model import NotFound, PIM, ValidationError
 from tests.fixture import make_fixture
@@ -57,6 +59,28 @@ class CreateAndIdTests(unittest.TestCase):
             pim.modify(1, {"type": "task"})
         self.assertEqual(pim.get(1).type_name, "note")
         self.assertEqual(pim.get(1).text, "Shopping: Milk")
+
+    def test_noop_modify_does_not_dirty(self):
+        pim = PIM()
+        pim.create_note("ok")
+        path = Path(tempfile.mkdtemp()) / "x.pim"
+        pim.save(path)
+        self.assertFalse(pim.is_dirty())
+        original = pim.get(1)
+        self.assertIs(pim.modify(1, {}), original)
+        self.assertFalse(pim.is_dirty())
+        self.assertIs(pim.modify(1, {"text": "ok"}), original)
+        self.assertFalse(pim.is_dirty())
+
+    def test_failed_modify_does_not_replace_or_dirty_a_clean_collection(self):
+        pim = PIM()
+        pim.create_note("ok")
+        path = Path(tempfile.mkdtemp()) / "x.pim"
+        pim.save(path)
+        with self.assertRaises(ValidationError):
+            pim.modify(1, {"text": "  "})
+        self.assertEqual(pim.get(1).text, "ok")
+        self.assertFalse(pim.is_dirty())
 
 
 if __name__ == "__main__":

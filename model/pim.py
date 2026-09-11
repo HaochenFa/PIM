@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import copy
+
 from model.criterion import Criterion
 from model.pimfile import read_pim_file, require_pim_extension, write_pim_file
 from model.pir import (
@@ -47,9 +49,13 @@ class PIM:
         pir = self.get(pir_id)
         if not isinstance(fields, dict):
             raise ValidationError("fields must be a mapping")
-        pir.modify(fields)
+        candidate = copy.copy(pir)
+        candidate.modify(fields)
+        if candidate.to_json() == pir.to_json():
+            return pir
+        self._pirs[pir.id] = candidate
         self._dirty = True
-        return pir
+        return candidate
 
     def delete(self, pir_id) -> None:
         self.get(pir_id)

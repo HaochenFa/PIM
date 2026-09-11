@@ -6,6 +6,7 @@ and persistence stay in sibling modules.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -19,10 +20,26 @@ RELATIVE_UNITS = {
 }
 TYPE_NAMES = ("note", "task", "event", "contact")
 CLEAR = "none"
+KIND_TEXT = "text"
+KIND_DATETIME = "datetime"
+KIND_ALARMS = "alarms"
+
+
+@dataclass(frozen=True)
+class FieldSpec:
+    """One promptable field. View walks this list; it does not switch on type_name."""
+
+    key: str
+    label: str
+    kind: str
+    required: bool = True
 
 
 class PIMError(Exception):
     """User-facing domain failure. Controller maps this to a status line."""
+
+    def status_message(self) -> str:
+        return str(self)
 
 
 class ValidationError(PIMError):
@@ -34,7 +51,8 @@ class NotFound(PIMError):
 
 
 class ParseError(PIMError):
-    pass
+    def status_message(self) -> str:
+        return f"search syntax error: {self}"
 
 
 class DirtyLoadError(PIMError):
@@ -42,7 +60,8 @@ class DirtyLoadError(PIMError):
 
 
 class FileFormatError(PIMError):
-    pass
+    def status_message(self) -> str:
+        return f"not a PIM file: {self}"
 
 
 class ExtensionError(PIMError):
@@ -185,9 +204,20 @@ class DueAlarm:
 
 class PIR:
     type_name: str = ""
+    FIELDS: tuple[FieldSpec, ...] = ()
 
     def __init__(self, pir_id: int):
         self.id = pir_id
+
+    def display_field(self, key: str) -> str:
+        value = getattr(self, key)
+        if value is None:
+            return "none"
+        if key == "alarms":
+            return "none" if not value else f"{len(value)} alarm(s)"
+        if isinstance(value, datetime):
+            return format_datetime(value)
+        return str(value)
 
     @property
     def display_name(self) -> str:
@@ -224,6 +254,7 @@ class PIR:
 
 class Note(PIR):
     type_name = "note"
+    FIELDS = (FieldSpec("text", "text", KIND_TEXT, required=True),)
 
     def __init__(self, pir_id: int, text):
         super().__init__(pir_id)
@@ -256,6 +287,10 @@ class Note(PIR):
 
 class Task(PIR):
     type_name = "task"
+    FIELDS = (
+        FieldSpec("description", "description", KIND_TEXT, required=True),
+        FieldSpec("deadline", "deadline", KIND_DATETIME, required=False),
+    )
 
     def __init__(self, pir_id: int, description, deadline=None):
         super().__init__(pir_id)
@@ -312,6 +347,11 @@ class Task(PIR):
 
 class Event(PIR):
     type_name = "event"
+    FIELDS = (
+        FieldSpec("description", "description", KIND_TEXT, required=True),
+        FieldSpec("start", "start", KIND_DATETIME, required=True),
+        FieldSpec("alarms", "alarms", KIND_ALARMS, required=False),
+    )
 
     def __init__(self, pir_id: int, description, start, alarms=None):
         super().__init__(pir_id)
@@ -388,6 +428,11 @@ class Event(PIR):
 
 class Contact(PIR):
     type_name = "contact"
+    FIELDS = (
+        FieldSpec("name", "name", KIND_TEXT, required=True),
+        FieldSpec("address", "address", KIND_TEXT, required=False),
+        FieldSpec("mobile", "mobile", KIND_TEXT, required=False),
+    )
 
     def __init__(self, pir_id: int, name, address=None, mobile=None):
         super().__init__(pir_id)
@@ -446,6 +491,14 @@ class Contact(PIR):
             ("address", self.address or "(none)"),
             ("mobile", self.mobile or "(none)"),
         ]
+
+
+def pir_class(type_name: str):
+    name = type_name.casefold()
+    for cls in (Note, Task, Event, Contact):
+        if cls.type_name == name:
+            return cls
+    return None
 
 
 def pir_from_json(data: dict) -> PIR:
