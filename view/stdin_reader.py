@@ -9,6 +9,9 @@ def start_stdin_reader(queue, stdin):
             line = stdin.readline()
             if line == "":
                 queue.put(None)
+                # TTY Ctrl-D is per-read EOF; keep listening so the dirty prompt can be answered.
+                if stdin.isatty():
+                    continue
                 return
             if line.endswith("\n"):
                 line = line[:-1]

@@ -12,11 +12,23 @@ Platform: **macOS**. Language: **Python 3.12** (the version this tree was built 
 
 `model` must not import `view` or `controller`.
 
-## Run
+## Open and debug
+
+Open the repository folder in any IDE (VS Code, PyCharm, or another editor). The composition root is `pim.py`.
+
+Run:
 
 ```bash
 python pim.py
 ```
+
+Debug:
+
+```bash
+python -m pdb pim.py
+```
+
+Or use the IDE debugger: set the launch target to `pim.py` in this folder (Python 3.12). No build step; there is nothing to compile.
 
 ## Test
 

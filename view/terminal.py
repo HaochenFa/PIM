@@ -1,14 +1,15 @@
-"""Designed terminal UI: regions, wizards, in-process Alarm Alerts."""
+"""Designed terminal UI: regions, field-driven wizards, in-process Alarm Alerts."""
 
 from __future__ import annotations
 
 import sys
 from datetime import datetime
-from pathlib import Path
 from queue import Empty, Queue
 
 from controller.app import HELP
-from model.pir import HKT, format_datetime
+from controller.errors import message_for
+from model import AbsoluteAlarm, PIMError, RelativeAlarm
+from model.pir import KIND_ALARMS, HKT, format_datetime, pir_class
 from view.stdin_reader import start_stdin_reader
 
 MENU = (
@@ -20,6 +21,7 @@ NO = {"n", "no"}
 SAVE = {"save", "s"}
 DISCARD = {"discard", "d"}
 CANCEL = {"cancel", "c"}
+DIRTY = "dirty"
 
 
 class Terminal:
@@ -27,10 +29,10 @@ class Terminal:
         self.app = app
         self.stdin = stdin if stdin is not None else sys.stdin
         self.stdout = stdout if stdout is not None else sys.stdout
-        self._now = now  # optional injected clock for tests
+        self._now = now
         self.queue: Queue = Queue()
         self.dismissed: set[tuple[int, int]] = set()
-        self._prompts: list[tuple[str, object]] = []
+        self._prompts: list[tuple[str, object, str | None]] = []
         self._running = False
         self._last_snapshot = None
 
@@ -40,20 +42,23 @@ class Terminal:
         self.app.status = "Enter help for commands."
         self._paint(force=True)
         while self._running:
-            due_changed = self._paint(force=False)
+            self._paint(force=False)
             try:
                 line = self.queue.get(timeout=0.5)
             except Empty:
-                if due_changed:
-                    continue
                 continue
             if line is None:
-                self._running = False
-                break
+                self._handle_eof()
+                if not self._running:
+                    break
+                self._paint(force=True)
+                continue
             try:
                 self._handle_line(line)
-            except Exception:
-                self.app.status = "command failed"
+            except PIMError as exc:
+                self.app.status = message_for(exc)
+            except OSError as exc:
+                self.app.status = message_for(exc)
             self._paint(force=True)
 
     def _now_dt(self) -> datetime:
@@ -67,8 +72,8 @@ class Terminal:
     def _snapshot(self):
         due = self.visible_due()
         return (
-            self.app.pim.bound_path(),
-            self.app.pim.is_dirty(),
+            self.app.bound_path(),
+            self.app.is_dirty(),
             tuple((item.event_id, item.alarm_index, item.status, item.at.isoformat()) for item in due),
             tuple(sorted(self.dismissed)),
             tuple(pir.id for pir in self.app.current_result()),
@@ -99,21 +104,36 @@ class Terminal:
             return self._prompts[-1][0]
         return "> "
 
-    def ask(self, prompt: str, handler):
-        self._prompts.append((prompt, handler))
+    def _is_dirty_prompt(self) -> bool:
+        return bool(self._prompts) and self._prompts[-1][2] == DIRTY
+
+    def ask(self, prompt: str, handler, kind: str | None = None):
+        self._prompts.append((prompt, handler, kind))
 
     def _handle_line(self, line: str):
         if self._prompts:
-            _prompt, handler = self._prompts.pop()
+            _prompt, handler, _kind = self._prompts.pop()
             handler(line)
             return
         self._handle_command(line)
+
+    def _handle_eof(self):
+        if self._is_dirty_prompt():
+            self._prompts.clear()
+            self.app.status = "quit cancelled"
+            return
+        if self._prompts:
+            self._prompts.clear()
+            self.app.status = "command cancelled"
+        self._quit()
 
     def _handle_command(self, line: str):
         raw = line.strip()
         if not raw:
             return
         lower = raw.casefold()
+        if lower not in {"print", "print all"}:
+            self.app.clear_print()
         if lower in {"quit", "q", "exit"}:
             self._quit()
         elif lower == "help":
@@ -170,60 +190,61 @@ class Terminal:
         self.app.status = f"Dismissed alarm on Id {first.event_id}"
 
     def _quit(self):
-        if not self.app.pim.is_dirty():
+        if not self.app.is_dirty():
             self._running = False
             return
-        self.ask("unsaved changes: save / discard / cancel: ", self._on_quit_dirty)
+        self._ask_dirty(
+            on_save=lambda: setattr(self, "_running", False),
+            on_discard=lambda: setattr(self, "_running", False),
+            on_cancel=lambda: setattr(self.app, "status", "quit cancelled"),
+        )
 
-    def _on_quit_dirty(self, line: str):
-        choice = line.strip().casefold()
-        if choice in CANCEL:
-            self.app.status = "quit cancelled"
-            return
-        if choice in DISCARD:
-            self._running = False
-            return
-        if choice in SAVE:
-            if self.app.pim.bound_path():
-                if self.app.save():
-                    self._running = False
+    def _ask_dirty(self, on_save, on_discard, on_cancel):
+        def handler(line: str):
+            choice = line.strip().casefold()
+            if choice in CANCEL:
+                on_cancel()
                 return
-            self.ask("path: ", lambda path: self._save_as(path.strip(), then_quit=True))
-            return
-        self.app.status = "enter save, discard, or cancel"
-        self.ask("unsaved changes: save / discard / cancel: ", self._on_quit_dirty)
+            if choice in DISCARD:
+                on_discard()
+                return
+            if choice in SAVE:
+                if self.app.bound_path():
+                    if self.app.save():
+                        on_save()
+                    return
+                self.ask("path: ", lambda path: self._save_as(path.strip(), then=on_save))
+                return
+            self.app.status = "enter save, discard, or cancel"
+            self._ask_dirty(on_save, on_discard, on_cancel)
+
+        self.ask("unsaved changes: save / discard / cancel: ", handler, DIRTY)
 
     def _save(self):
-        if self.app.pim.bound_path():
+        if self.app.bound_path():
             self.app.save()
             return
         self.ask("path: ", lambda path: self._save_as(path.strip()))
 
-    def _save_as(self, path: str, then_quit=False, then=None):
+    def _save_as(self, path: str, then=None):
         if not path:
             self.app.status = "path is required"
             return
-        candidate = Path(path)
-        if candidate.suffix.casefold() != ".pim":
-            candidate = Path(str(candidate) + ".pim")
-        bound = self.app.pim.bound_path()
-        if candidate.exists() and (bound is None or Path(bound) != candidate):
+        if self.app.would_overwrite(path):
 
             def confirm(answer: str):
                 if answer.strip().casefold() in YES:
-                    self._commit_save(str(candidate), then_quit, then)
+                    self._commit_save(path, then)
                 else:
                     self.app.status = "save as cancelled"
 
-            self.ask(f"overwrite {candidate}? [y/n]: ", confirm)
+            self.ask(f"overwrite {self.app.save_target(path)}? [y/n]: ", confirm)
             return
-        self._commit_save(str(candidate), then_quit, then)
+        self._commit_save(path, then)
 
-    def _commit_save(self, path: str, then_quit, then):
+    def _commit_save(self, path: str, then):
         if not self.app.save(path):
             return
-        if then_quit:
-            self._running = False
         if then:
             then()
 
@@ -231,81 +252,92 @@ class Terminal:
         if not path:
             self.app.status = "path is required"
             return
-        if self.app.pim.is_dirty():
-            self.ask(
-                "unsaved changes: save / discard / cancel: ",
-                lambda answer: self._on_load_dirty(answer, path),
+        if self.app.is_dirty():
+            self._ask_dirty(
+                on_save=lambda: self.app.load(path),
+                on_discard=lambda: self.app.load(path, force=True),
+                on_cancel=lambda: setattr(self.app, "status", "load cancelled"),
             )
             return
         self.app.load(path)
-
-    def _on_load_dirty(self, line: str, path: str):
-        choice = line.strip().casefold()
-        if choice in CANCEL:
-            self.app.status = "load cancelled"
-            return
-        if choice in DISCARD:
-            self.app.load(path, force=True)
-            return
-        if choice in SAVE:
-            if self.app.pim.bound_path():
-                if self.app.save():
-                    self.app.load(path)
-                return
-            self.ask("path: ", lambda dest: self._save_as(dest.strip(), then=lambda: self.app.load(path)))
-            return
-        self.app.status = "enter save, discard, or cancel"
-        self.ask(
-            "unsaved changes: save / discard / cancel: ",
-            lambda answer: self._on_load_dirty(answer, path),
-        )
 
     def _start_create(self, type_name: str | None):
         if not type_name:
             self.ask("type (note/task/event/contact): ", lambda value: self._start_create(value.strip().casefold()))
             return
-        if type_name == "note":
-            self.ask("text: ", lambda value: self.app.create_note(value))
-        elif type_name == "task":
-            data = {}
-
-            def description(value):
-                data["description"] = value
-                self.ask("deadline (optional, empty skips): ", deadline)
-
-            def deadline(value):
-                self.app.create_task(data["description"], value.strip() or None)
-
-            self.ask("description: ", description)
-        elif type_name == "event":
-            data = {}
-
-            def description(value):
-                data["description"] = value
-                self.ask("start: ", start)
-
-            def start(value):
-                data["start"] = value
-                self._collect_alarms([], lambda alarms: self.app.create_event(data["description"], data["start"], alarms))
-
-            self.ask("description: ", description)
-        elif type_name == "contact":
-            data = {}
-
-            def name(value):
-                data["name"] = value
-                self.ask("address (optional): ", address)
-
-            def address(value):
-                data["address"] = value.strip() or None
-                self.ask("mobile (optional): ", mobile)
-
-            def mobile(value):
-                self.app.create_contact(data["name"], data["address"], value.strip() or None)
-
-            self.ask("name: ", name)
-        else:
+        cls = pir_class(type_name)
+        if cls is None:
             self.app.status = f"unknown PIR type: {type_name}"
+            return
+        self._prompt_fields(cls.FIELDS, None, lambda fields: self.app.create(type_name, fields))
+
+    def _start_modify(self):
+        pir = self.app.selected()
+        if pir is None:
+            self.app.status = "no PIR selected"
+            return
+        self._prompt_fields(type(pir).FIELDS, pir, self.app.modify)
+
+    def _field_prompt(self, spec, existing) -> str:
+        if existing is None:
+            extra = "" if spec.required else " (optional, empty skips)"
+            return f"{spec.label}{extra}: "
+        current = existing.display_field(spec.key)
+        if spec.required:
+            return f"{spec.label} [{current}]: "
+        return f"{spec.label} [{current}] (empty keeps, none clears): "
+
+    def _prompt_fields(self, specs, existing, on_done):
+        pending = list(specs)
+        fields = {}
+
+        def next_field():
+            if not pending:
+                on_done(fields)
+                return
+            spec = pending.pop(0)
+            if spec.kind == KIND_ALARMS:
+                self._prompt_alarms(existing, fields, next_field)
+                return
+            self.ask(self._field_prompt(spec, existing), lambda line, spec=spec: got_value(spec, line))
+
+        def got_value(spec, line):
+            if existing is not None:
+                if line == "":
+                    next_field()
+                    return
+                fields[spec.key] = line
+                next_field()
+                return
+            if spec.required:
+                fields[spec.key] = line
+            elif line.strip():
+                fields[spec.key] = line.strip()
+            next_field()
+
+        next_field()
+
+    def _prompt_alarms(self, existing, fields, then):
+        def capture(alarms):
+            fields["alarms"] = alarms
+            then()
+
+        if existing is None:
+            self._collect_alarms([], capture)
+            return
+
+        def question(value: str):
+            answer = value.strip().casefold()
+            if answer in NO or answer == "":
+                then()
+                return
+            if answer in YES:
+                self._collect_alarms([], capture)
+                return
+            self.app.status = "enter y or n"
+            self.ask("replace alarms? [y/n]: ", question)
+
+        self.ask("replace alarms? [y/n]: ", question)
 
     def _collect_alarms(self, alarms: list, on_done):
         def more(value: str):
@@ -333,94 +365,41 @@ class Terminal:
                 self._one_alarm(alarms, on_done)
 
         def amount(value: str):
-            raw = value.strip()
-            if raw == "0":
-                alarms.append({"kind": "relative", "amount": 0, "unit": "minute"})
+            try:
+                count = int(value.strip())
+            except (TypeError, ValueError):
+                self.app.status = "relative alarm amount must be an integer"
+                self._one_alarm(alarms, on_done)
+                return
+            if count < 0:
+                self.app.status = "relative alarm cannot be after start"
+                self._one_alarm(alarms, on_done)
+                return
+            if count == 0:
+                alarms.append(RelativeAlarm(0, "minute"))
                 self._collect_alarms(alarms, on_done)
                 return
-            self.ask("unit (minute/hour/day/week): ", lambda unit: unit_done(raw, unit))
+            self.ask("unit (minute/hour/day/week): ", lambda unit: unit_done(count, unit))
 
-        def unit_done(raw_amount, unit):
-            alarms.append({"kind": "relative", "amount": raw_amount, "unit": unit.strip()})
+        def unit_done(count, unit):
+            try:
+                alarms.append(RelativeAlarm(count, unit.strip()))
+            except PIMError as exc:
+                self.app.status = message_for(exc)
+                self._one_alarm(alarms, on_done)
+                return
             self._collect_alarms(alarms, on_done)
 
         def at(value: str):
-            alarms.append({"kind": "absolute", "at": value.strip()})
+            try:
+                alarms.append(AbsoluteAlarm(value.strip()))
+            except PIMError as exc:
+                self.app.status = message_for(exc)
+                self._one_alarm(alarms, on_done)
+                return
             self._collect_alarms(alarms, on_done)
 
         self.ask("alarm kind (relative/absolute): ", kind)
-
-    def _start_modify(self):
-        pir = self.app.selected()
-        if pir is None:
-            self.app.status = "no PIR selected"
-            return
-        if pir.type_name == "note":
-            self.ask(f"text [{pir.text}]: ", lambda value: self._modify({"text": value} if value != "" else {}))
-        elif pir.type_name == "task":
-            fields = {}
-
-            def description(value):
-                if value != "":
-                    fields["description"] = value
-                shown = format_datetime(pir.deadline) if pir.deadline else "none"
-                self.ask(f"deadline [{shown}] (empty keeps, none clears): ", deadline)
-
-            def deadline(value):
-                if value != "":
-                    fields["deadline"] = value
-                self._modify(fields)
-
-            self.ask(f"description [{pir.description}]: ", description)
-        elif pir.type_name == "event":
-            fields = {}
-
-            def description(value):
-                if value != "":
-                    fields["description"] = value
-                self.ask(f"start [{format_datetime(pir.start)}]: ", start)
-
-            def start(value):
-                if value != "":
-                    fields["start"] = value
-                self.ask("replace alarms? [y/n]: ", alarms_q)
-
-            def alarms_q(value):
-                answer = value.strip().casefold()
-                if answer in NO or answer == "":
-                    self._modify(fields)
-                    return
-                if answer in YES:
-                    self._collect_alarms([], lambda alarms: self._modify({**fields, "alarms": alarms}))
-                    return
-                self.app.status = "enter y or n"
-                self.ask("replace alarms? [y/n]: ", alarms_q)
-
-            self.ask(f"description [{pir.description}]: ", description)
-        elif pir.type_name == "contact":
-            fields = {}
-
-            def name(value):
-                if value != "":
-                    fields["name"] = value
-                shown = pir.address or "none"
-                self.ask(f"address [{shown}] (empty keeps, none clears): ", address)
-
-            def address(value):
-                if value != "":
-                    fields["address"] = value
-                shown = pir.mobile or "none"
-                self.ask(f"mobile [{shown}] (empty keeps, none clears): ", mobile)
-
-            def mobile(value):
-                if value != "":
-                    fields["mobile"] = value
-                self._modify(fields)
-
-            self.ask(f"name [{pir.name}]: ", name)
-
-    def _modify(self, fields: dict):
-        self.app.modify(fields)
 
     def _start_delete(self):
         pir = self.app.selected()
@@ -437,8 +416,8 @@ class Terminal:
         self.ask(f"delete Id {pir.id} {pir.type_name} {pir.display_name!r}? [y/n]: ", confirm)
 
     def _layout(self) -> list[str]:
-        bound = self.app.pim.bound_path() or "untitled"
-        dirty = "*" if self.app.pim.is_dirty() else ""
+        bound = self.app.bound_path() or "untitled"
+        dirty = "*" if self.app.is_dirty() else ""
         title = f"PIM  {bound}{dirty}"
         due = self.visible_due()
         alarm_lines = ["ALARMS"]

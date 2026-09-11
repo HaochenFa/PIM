@@ -2,12 +2,27 @@
 
 from __future__ import annotations
 
-from model import PIM, PIMError, ValidationError, parse_criterion
+from pathlib import Path
+
 from controller.errors import message_for
+from model import PIM, PIMError, ValidationError, parse_criterion
+from model.pimfile import append_pim_extension
 
 
 def format_pir(pir) -> str:
     return "\n".join(f"{key}: {value}" for key, value in pir.detail_lines())
+
+
+_CREATE = {
+    "note": lambda pim, fields: pim.create_note(fields.get("text")),
+    "task": lambda pim, fields: pim.create_task(fields.get("description"), fields.get("deadline")),
+    "event": lambda pim, fields: pim.create_event(
+        fields.get("description"), fields.get("start"), fields.get("alarms")
+    ),
+    "contact": lambda pim, fields: pim.create_contact(
+        fields.get("name"), fields.get("address"), fields.get("mobile")
+    ),
+}
 
 
 class App:
@@ -19,6 +34,30 @@ class App:
         self.status = ""
         self.print_text = ""
         self._refresh()
+
+    def bound_path(self):
+        return self.pim.bound_path()
+
+    def is_dirty(self) -> bool:
+        return self.pim.is_dirty()
+
+    def save_target(self, path) -> str:
+        return str(append_pim_extension(path))
+
+    def would_overwrite(self, path) -> bool:
+        target = Path(self.save_target(path))
+        bound = self.pim.bound_path()
+        if not target.exists():
+            return False
+        if bound is None:
+            return True
+        try:
+            return target.resolve() != Path(bound).resolve()
+        except OSError:
+            return str(target) != str(bound)
+
+    def clear_print(self):
+        self.print_text = ""
 
     def current_result(self):
         return list(self._result)
@@ -42,28 +81,29 @@ class App:
     def due_alarms(self, now):
         return self.pim.due_alarms(now)
 
-    def create_note(self, text):
-        return self._create(lambda: self.pim.create_note(text), "Note")
-
-    def create_task(self, description, deadline=None):
-        return self._create(lambda: self.pim.create_task(description, deadline), "Task")
-
-    def create_event(self, description, start, alarms=None):
-        return self._create(lambda: self.pim.create_event(description, start, alarms), "Event")
-
-    def create_contact(self, name, address=None, mobile=None):
-        return self._create(lambda: self.pim.create_contact(name, address, mobile), "Contact")
+    def create(self, type_name, fields):
+        factory = _CREATE.get(type_name)
+        if factory is None:
+            self.status = f"unknown PIR type: {type_name}"
+            return None
+        return self._create(lambda: factory(self.pim, fields), type_name.capitalize())
 
     def modify(self, fields):
         pir = self.selected()
         if pir is None:
             self.status = "no PIR selected"
             return None
+        if not fields:
+            self.status = "No changes"
+            return pir
         try:
             updated = self.pim.modify(pir.id, fields)
         except PIMError as exc:
             self.status = message_for(exc)
             return None
+        if updated is pir:
+            self.status = "No changes"
+            return pir
         self._refresh()
         self.status = f"Modified Id {updated.id}"
         return updated
