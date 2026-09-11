@@ -35,6 +35,21 @@ class FixtureSearchTests(unittest.TestCase):
             [2],
         )
 
+    def test_deadline_space_separated_datetime(self):
+        self.assertEqual(ids_for(self.pim, "deadline < 2026-11-21 00:00"), [2])
+
+    def test_start_space_separated_offset_datetime(self):
+        self.assertEqual(
+            ids_for(self.pim, "start = 2026-09-14 18:30:00+08:00"),
+            [4],
+        )
+
+    def test_space_separated_datetime_stops_at_and(self):
+        self.assertEqual(
+            ids_for(self.pim, "deadline < 2026-11-21 00:00 && type = task"),
+            [2],
+        )
+
     def test_start_equality_with_hkt(self):
         self.assertEqual(
             ids_for(self.pim, "start = 2026-09-14T18:30:00+08:00"),

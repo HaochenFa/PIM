@@ -15,11 +15,16 @@ OPS = {"=": lambda a, b: a == b, "<": lambda a, b: a < b, ">": lambda a, b: a > 
 
 
 class Criterion:
+    """One node of a search tree."""
+
     def matches(self, pir: PIR) -> bool:
+        """True iff `pir` satisfies this node."""
         raise NotImplementedError
 
 
 class TypeIs(Criterion):
+    """True when the PIR's type equals `type_name`."""
+
     def __init__(self, type_name: str):
         name = type_name.casefold()
         if name not in TYPE_NAMES:
@@ -53,6 +58,8 @@ class Contains(Criterion):
 
 
 class TimeCompare(Criterion):
+    """True when any instant of `field` satisfies `op` against `instant`. A missing field is false."""
+
     def __init__(self, field: str, op: str, instant: datetime):
         key = field.casefold()
         if key not in TIME_FIELDS:
@@ -72,6 +79,8 @@ class TimeCompare(Criterion):
 
 
 class And(Criterion):
+    """Both sides match."""
+
     def __init__(self, left: Criterion, right: Criterion):
         self.left = left
         self.right = right
@@ -81,6 +90,8 @@ class And(Criterion):
 
 
 class Or(Criterion):
+    """Either side matches."""
+
     def __init__(self, left: Criterion, right: Criterion):
         self.left = left
         self.right = right
@@ -90,6 +101,8 @@ class Or(Criterion):
 
 
 class Not(Criterion):
+    """Inner does not match."""
+
     def __init__(self, inner: Criterion):
         self.inner = inner
 
@@ -98,6 +111,7 @@ class Not(Criterion):
 
 
 def parse_criterion(text: str) -> Criterion:
+    """Parse one US7 criterion line. Raises ParseError on empty input or bad syntax."""
     if text is None or not str(text).strip():
         raise ParseError("search criterion is required")
     parser = _Parser(tokenize(text))
@@ -107,6 +121,7 @@ def parse_criterion(text: str) -> Criterion:
 
 
 def tokenize(text: str) -> list[tuple[str, str]]:
+    """Lex a criterion line into (kind, value) tokens, ending with EOF."""
     tokens: list[tuple[str, str]] = []
     i = 0
     n = len(text)
@@ -138,6 +153,10 @@ def tokenize(text: str) -> list[tuple[str, str]]:
         if ch in "<>=":
             tokens.append(("CMP", ch))
             i += 1
+            # Time operands may contain spaces (`YYYY-MM-DD HH:MM`); stop at
+            # `&&`, `||`, `)`, or end so they stay one TIME token.
+            if _follows_time_field(tokens):
+                i = _consume_datetime(text, i, tokens)
             continue
         if ch == '"':
             value, i = _read_string(text, i)
@@ -161,6 +180,31 @@ def tokenize(text: str) -> list[tuple[str, str]]:
         i = j
     tokens.append(("EOF", ""))
     return tokens
+
+
+def _follows_time_field(tokens: list[tuple[str, str]]) -> bool:
+    if len(tokens) < 2:
+        return False
+    kind, value = tokens[-2]
+    return kind == "IDENT" and value.casefold() in TIME_FIELDS
+
+
+def _consume_datetime(text: str, i: int, tokens: list[tuple[str, str]]) -> int:
+    n = len(text)
+    while i < n and text[i].isspace():
+        i += 1
+    if i >= n or text[i] == '"':
+        return i
+    j = i
+    while j < n:
+        if text.startswith("&&", j) or text.startswith("||", j) or text[j] == ")":
+            break
+        j += 1
+    raw = text[i:j].rstrip()
+    if raw:
+        tokens.append(("TIME", raw))
+        return j
+    return i
 
 
 def _read_string(text: str, start: int) -> tuple[str, int]:
