@@ -28,7 +28,7 @@ It is not a multi-user system, a network service, a GUI, or a calendar daemon. A
 
 ### Explicitly out (extra features, no extra credit)
 
-- GUI, full-screen curses, third-party TUI (Textual / Rich / Click)
+- GUI, third-party TUI (Textual / Rich / Click); stdlib `curses` on a TTY is the designed terminal (ADR-0018)
 - Any pip dependency; Python standard library only
 - Networking, multi-user, sync
 - Recurring events / Event Series / RRULE
@@ -113,13 +113,15 @@ Rules:
 
 ## 4. Interaction
 
-Designed terminal UI (clear and redraw regions, optional ANSI; no curses; no third-party libraries):
+Designed terminal UI (stdlib `curses` on an interactive TTY; line-oriented layout when stdin/stdout is not a TTY or `PIM_NO_CURSES` is set; no third-party libraries):
 
-1. Title line: Bound File or untitled, dirty flag
+1. Title line: Bound File or untitled, dirty flag, HKT clock
 2. Alarm Alert banner (dismissible)
-3. Current Result table: Id / type / Display Name / relevant time
+3. Current Result table: Id / type pin / Display Name / relevant time
 4. Detail of the selection
-5. Menu + prompt
+5. Menu + prompt (selectors and a calendar for closed answers; one criterion line for search)
+
+Letter keys and arrows are accelerators for the same verb commands. They do not replace prompted create/modify or the criterion grammar.
 
 | Intent | How |
 |---|---|
@@ -140,17 +142,18 @@ Invalid input: **commands fail atomically** — Working Collection unchanged, no
 | ADR-0001 | Python, not Java |
 | ADR-0002 | `model` is a deep OO module: small `PIM` interface + PIR hierarchy + composite Criterion |
 | ADR-0003 | `.pim` contains UTF-8 JSON |
-| ADR-0004 | Standard library only; submitted View is a designed terminal, not curses / Textual |
+| ADR-0004 | Standard library only; designed terminal, not a GUI / Textual (curses clause → ADR-0018) |
 | ADR-0005 | Default timezone HKT |
 | ADR-0006 | The only unique identity is the system Id |
 | ADR-0007 | Alarms follow iCal TRIGGER semantics (relative or absolute, several allowed) |
 | ADR-0008 | contains uses Unicode casefold |
 | ADR-0009 | No recurrence |
-| ADR-0010 | View event loop, stdin thread, 500ms tick, redraw on change |
+| ADR-0010 | View event loop, 500ms tick, redraw on change (TTY: curses timeout; else stdin thread) |
 | ADR-0011 | Top-level packages `model/` `view/` `controller/` + `pim.py` |
 | ADR-0012 | PIR type is immutable after creation |
 | ADR-0013 | Prompted create/modify; criterion line for search |
 | ADR-0014 | A failed command does not change data |
 | ADR-0015 | `.pim` extension is enforced |
+| ADR-0018 | Stdlib curses on a TTY; line UI for scripts and tests |
 
 Glossary: `CONTEXT.md`. Do not use Name as a title, Label as identity, or Note as a field name.
