@@ -37,14 +37,14 @@ def result_ids(app: App) -> list[int]:
     return [pir.id for pir in app.current_result()]
 
 
-def run_script(lines, now=None, pim=None, timeout: float = 8.0):
+def run_script(lines, now=None, pim=None, app=None, timeout: float = 8.0):
     """Run one Terminal session. Returns `(app, terminal, stdout text)`.
 
     `now` is an aware datetime or a zero-arg callable, injected into the View.
     The last command should leave the session able to exit (`quit`, or
     `quit` plus `discard` / `save` when dirty).
     """
-    app = App(pim if pim is not None else PIM())
+    app = app if app is not None else App(pim if pim is not None else PIM())
     stdout = io.StringIO()
     terminal = Terminal(app, stdin=LineStdin(lines), stdout=stdout, now=now)
     thread = threading.Thread(target=terminal.run, name="e2e-terminal", daemon=True)
