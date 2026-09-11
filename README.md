@@ -28,13 +28,16 @@ model/          # required package name; the unit-test surface
 view/           # designed terminal UI and in-process Alarm Alerts
 controller/     # one user action → model.PIM
 pim.py          # composition root: python pim.py
-tests/          # unittest for model only
+tests/unit/     # model (100% lines) + controller + view
+tests/integration/
+tests/e2e/
+hooks/          # pre-commit: unit + integration + e2e
 docs/
 CONTEXT.md
 README.md
 ```
 
-Run with `python pim.py`. Tests: `python -m unittest`. Coverage: `python coverage_report.py`. See [`DEVELOPER.md`](DEVELOPER.md) and [`USER.md`](USER.md). Story coverage: [`REQUIREMENTS.md`](REQUIREMENTS.md).
+Run with `python pim.py`. Tests: `python -m unittest`. Coverage: `python coverage_report.py` (must be 100% of `model/`). Enable the commit gate: `git config core.hooksPath hooks`. See [`DEVELOPER.md`](DEVELOPER.md) and [`USER.md`](USER.md). Story coverage: [`REQUIREMENTS.md`](REQUIREMENTS.md).
 
 ## Constraints that affect every commit
 
@@ -42,7 +45,7 @@ Run with `python pim.py`. Tests: `python -m unittest`. Coverage: `python coverag
 - Standard library only (no pip dependencies)
 - Default timezone: Hong Kong Time (`Asia/Hong_Kong`)
 - Failed commands do not mutate data, dump a traceback, or exit
-- Unit tests target `model/` with `unittest`; line-coverage report at the source root
+- Unit tests target `model/` with `unittest` at 100% line coverage; integration and e2e suites also run under `unittest`; line-coverage report at the source root
 
 ## Submission
 

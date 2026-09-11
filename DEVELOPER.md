@@ -8,7 +8,10 @@ Platform: **macOS**. Language: **Python 3.12** (the version this tree was built 
 - `view/` — designed terminal UI and in-process Alarm Alerts (stdin thread + 500ms tick).
 - `controller/` — one completed user action → `model.PIM`.
 - `pim.py` — composition root.
-- `tests/` — `unittest` for `model` only.
+- `tests/unit/` — `model` (assignment surface, 100% lines), `controller.App`, `view.Terminal`.
+- `tests/integration/` — App against PIM; Terminal against App+PIM (no stdin thread).
+- `tests/e2e/` — scripted terminal sessions through `Terminal.run()`.
+- `hooks/pre-commit` — refuses a commit unless unit (100% `model/` coverage), integration, and e2e all pass.
 
 `model` must not import `view` or `controller`.
 
@@ -32,8 +35,18 @@ Or use the IDE debugger: set the launch target to `pim.py` in this folder (Pytho
 
 ## Test
 
+All layers:
+
 ```bash
 python -m unittest
+```
+
+By layer:
+
+```bash
+python -m unittest discover -s tests/unit -t .
+python -m unittest discover -s tests/integration -t .
+python -m unittest discover -s tests/e2e -t .
 ```
 
 ## Line coverage (`model/`)
@@ -42,7 +55,17 @@ python -m unittest
 python coverage_report.py
 ```
 
-Writes `coverage.txt` at the source root. Uses `trace` from the standard library.
+Writes `coverage.txt` at the source root. Uses `trace` from the standard library on `tests/unit` only. Exit status is 1 unless every countable line in `model/` was hit.
+
+## Pre-commit hook
+
+Once per clone:
+
+```bash
+git config core.hooksPath hooks
+```
+
+`git commit` then runs unit tests + 100% `model/` coverage, then integration, then e2e. Bypass with `git commit --no-verify`. No pip packages.
 
 ## Product decisions
 

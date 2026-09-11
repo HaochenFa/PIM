@@ -2,7 +2,7 @@
 
 import unittest
 
-from model import ParseError, parse_criterion
+from model import Criterion, Note, ParseError, TimeCompare, parse_criterion, parse_datetime
 from tests.fixture import make_fixture
 
 
@@ -34,6 +34,39 @@ class FixtureSearchTests(unittest.TestCase):
             ids_for(self.pim, "deadline < 2026-11-21T00:00:00+08:00"),
             [2],
         )
+
+    def test_deadline_greater_and_equal(self):
+        self.assertEqual(
+            ids_for(self.pim, "deadline > 2026-11-19T00:00:00+08:00"),
+            [2],
+        )
+        self.assertEqual(
+            ids_for(self.pim, "deadline = 2026-11-20T20:00:00+08:00"),
+            [2],
+        )
+
+    def test_start_greater_than(self):
+        self.assertEqual(
+            ids_for(self.pim, "start > 2026-09-14T00:00:00+08:00"),
+            [4],
+        )
+
+    def test_quoted_datetime_matches_start(self):
+        self.assertEqual(
+            ids_for(self.pim, 'start = "2026-09-14T18:30:00+08:00"'),
+            [4],
+        )
+
+    def test_address_and_mobile_contains(self):
+        self.assertEqual(ids_for(self.pim, 'address contains "HK"'), [6])
+        self.assertEqual(ids_for(self.pim, 'mobile contains "123"'), [5])
+        self.assertEqual(ids_for(self.pim, 'address contains "missing"'), [])
+
+    def test_escaped_quote_and_newline_in_contains(self):
+        quoted = self.pim.create_note('say "hi"')
+        self.assertEqual(ids_for(self.pim, r'text contains "say \"hi\""'), [quoted.id])
+        broken = self.pim.create_note("line\nbreak")
+        self.assertEqual(ids_for(self.pim, r'text contains "line\nbreak"'), [broken.id])
 
     def test_deadline_space_separated_datetime(self):
         self.assertEqual(ids_for(self.pim, "deadline < 2026-11-21 00:00"), [2])
@@ -103,6 +136,54 @@ class PrecedenceTests(unittest.TestCase):
         pim = make_fixture()
         # !type = note && type = task  →  (!note) && task
         self.assertEqual(ids_for(pim, "!type = note && type = task"), [2, 3])
+
+    def test_double_not_and_grouped_or(self):
+        pim = make_fixture()
+        self.assertEqual(ids_for(pim, "!(!(type = note))"), [1])
+        self.assertEqual(
+            ids_for(pim, "(type = task || type = note) && type = note"),
+            [1],
+        )
+
+
+class ParseErrorTests(unittest.TestCase):
+    def test_unknown_type_field_or_operator(self):
+        with self.assertRaises(ParseError):
+            parse_criterion("type = series")
+        with self.assertRaises(ParseError):
+            parse_criterion('title contains "x"')
+        with self.assertRaises(ParseError):
+            parse_criterion("due < 2026-01-01")
+        with self.assertRaises(ParseError):
+            TimeCompare("deadline", "!=", parse_datetime("2026-01-01T00:00:00+08:00"))
+
+    def test_malformed_type_clause(self):
+        with self.assertRaises(ParseError):
+            parse_criterion("type > note")
+        with self.assertRaises(ParseError):
+            parse_criterion('type = "note"')
+
+    def test_incomplete_or_stray_tokens(self):
+        with self.assertRaises(ParseError):
+            parse_criterion("description")
+        with self.assertRaises(ParseError):
+            parse_criterion("&&")
+        with self.assertRaises(ParseError):
+            parse_criterion("deadline <")
+        with self.assertRaises(ParseError):
+            parse_criterion("deadline < not-a-date")
+        with self.assertRaises(ParseError):
+            parse_criterion("(type = note")
+        with self.assertRaises(ParseError):
+            parse_criterion('contains "abc\\')
+        with self.assertRaises(ParseError):
+            parse_criterion("< 1")
+        with self.assertRaises(ParseError):
+            parse_criterion("deadline <)")
+
+    def test_base_criterion_matches_is_not_implemented(self):
+        with self.assertRaises(NotImplementedError):
+            Criterion().matches(Note(1, "x"))
 
 
 if __name__ == "__main__":

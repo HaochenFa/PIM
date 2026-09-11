@@ -54,7 +54,10 @@ controller/
   app.py               # one user action → PIM call
   errors.py            # user-facing failures (no traceback leak)
 pim.py                 # python pim.py
-tests/                 # model only; inject now and temp .pim files
+tests/
+  unit/                # model (graded, 100%) plus App/Terminal with fakes
+  integration/         # App ↔ PIM; Terminal ↔ App+PIM (no stdin-reader thread)
+  e2e/                 # scripted Terminal.run()
 ```
 
 `model` is a deep module: callers use `PIM` and the Criterion constructors. Matching internals in `pir.py` / `criterion.py` are not the Controller’s interface.
@@ -223,7 +226,7 @@ Unit tests (the assignment requires tests for the model only):
 - `due_alarms(now)` OVERDUE / SOON boundaries (injected now)
 - dirty flag; a bad file must not clobber memory
 
-The line-coverage report is for `model/` and lives in the source root.
+The line-coverage report is for `model/` (unit tests only) and lives in the source root. Integration and e2e suites are extra in-repo gates; they are not a substitute for model unit tests. See `docs/adr/0017`.
 
 ## 8. Mapping to the rubric
 
