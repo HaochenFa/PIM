@@ -14,7 +14,7 @@ from tests.e2e.test_user_flows import fixture_lines
 
 class CommandVocabularyTests(unittest.TestCase):
     def test_help_clear_and_q_alias(self):
-        app, _term, out = run_script(
+        app, term, out = run_script(
             [
                 *fixture_lines(),
                 "help",
@@ -27,6 +27,8 @@ class CommandVocabularyTests(unittest.TestCase):
         self.assertIn(HELP, out)
         self.assertEqual(len(result_ids(app)), 6)
         self.assertIn("Search cleared", out)
+        self.assertNotIn("unknown command: q", out)
+        self.assertFalse(term._running)
 
     def test_create_type_prompt_and_search_criterion_prompt(self):
         app, _term, out = run_script(
@@ -44,8 +46,13 @@ class CommandVocabularyTests(unittest.TestCase):
         self.assertIn("1 match(es)", out)
 
     def test_exit_alias_on_clean_collection(self):
-        _app, term, _out = run_script(["exit"])
+        _app, term, out = run_script(["exit"])
+        self.assertNotIn("unknown command: exit", out)
         self.assertFalse(term._running)
+
+    def test_missing_quit_times_out(self):
+        with self.assertRaises(TimeoutError):
+            run_script(["help"], timeout=1.5)
 
 
 class SaveLoadPromptTests(unittest.TestCase):
@@ -175,6 +182,7 @@ class WizardErrorTests(unittest.TestCase):
                 "delete",
                 "yes",
                 "quit",
+                "discard",
             ]
         )
         self.assertEqual(app.pim.all(), [])
@@ -198,6 +206,17 @@ class EventLoopErrorTests(unittest.TestCase):
             app=BoomSave(PIM()),
         )
         self.assertIn("disk full", out)
+
+    def test_run_script_reraises_event_loop_crash(self):
+        class BoomSearch(App):
+            def search(self, line):
+                raise RuntimeError("boom")
+
+        with self.assertRaises(RuntimeError):
+            run_script(
+                ["search type = note", "quit"],
+                app=BoomSearch(PIM()),
+            )
 
 
 if __name__ == "__main__":

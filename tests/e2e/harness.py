@@ -12,20 +12,31 @@ from view import Terminal
 
 
 class LineStdin:
-    """File-like stdin: each scripted line, then EOF. Not a TTY."""
+    """File-like stdin: each scripted line, then block. Not a TTY.
+
+    After the script, `readline` waits instead of returning EOF. Non-TTY EOF
+    also quits a clean session, so a missing `quit`/`exit` alias would still
+    stop the loop and a test that only checks `_running` would pass.
+    """
 
     def __init__(self, lines):
         """`lines` are command and prompt answers without a trailing newline."""
         self._lines = [line if line.endswith("\n") else f"{line}\n" for line in lines]
         self._index = 0
+        self._closed = threading.Event()
 
     def readline(self):
-        """Next scripted line, or empty string at EOF."""
-        if self._index >= len(self._lines):
-            return ""
-        line = self._lines[self._index]
-        self._index += 1
-        return line
+        """Next scripted line, or empty string after `close()`."""
+        if self._index < len(self._lines):
+            line = self._lines[self._index]
+            self._index += 1
+            return line
+        self._closed.wait()
+        return ""
+
+    def close(self):
+        """Unblock a waiting `readline` so the stdin-reader thread can exit."""
+        self._closed.set()
 
     def isatty(self) -> bool:
         """Scripts are not an interactive TTY."""
@@ -46,13 +57,29 @@ def run_script(lines, now=None, pim=None, app=None, timeout: float = 8.0):
     """
     app = app if app is not None else App(pim if pim is not None else PIM())
     stdout = io.StringIO()
-    terminal = Terminal(app, stdin=LineStdin(lines), stdout=stdout, now=now)
-    thread = threading.Thread(target=terminal.run, name="e2e-terminal", daemon=True)
+    stdin = LineStdin(lines)
+    terminal = Terminal(app, stdin=stdin, stdout=stdout, now=now)
+    caught: list[Exception] = []
+
+    def target():
+        try:
+            terminal.run()
+        except Exception as exc:
+            caught.append(exc)
+
+    thread = threading.Thread(target=target, name="e2e-terminal", daemon=True)
     thread.start()
-    thread.join(timeout)
-    if thread.is_alive():
-        raise TimeoutError("Terminal.run() did not exit; script may be missing quit")
-    return app, terminal, stdout.getvalue()
+    try:
+        thread.join(timeout)
+        if thread.is_alive():
+            raise TimeoutError(
+                "Terminal.run() did not exit; script may be missing quit"
+            )
+        if caught:
+            raise caught[0]
+        return app, terminal, stdout.getvalue()
+    finally:
+        stdin.close()
 
 
 def clock(value: datetime):
