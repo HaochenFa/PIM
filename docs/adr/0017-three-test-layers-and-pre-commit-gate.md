@@ -8,6 +8,6 @@ The assignment grades unit tests of `model/` only. That remains the graded surfa
 
 A versioned `hooks/pre-commit` runs unit+coverage, then integration, then e2e. Any failure blocks `git commit`. No pip: not pytest, not `coverage.py`, not the Python `pre-commit` framework. `git commit --no-verify` still exists.
 
-100% applies to `model/` under unit tests, not to `view/` or `controller/`. TTY-only ANSI and SIGINT paths stay untested.
+100% applies to `model/` under unit tests, not to `view/` or `controller/`. TTY ANSI clear and `_handle_interrupt` via `feed` are unit-tested; a real SIGINT inside `Terminal.run()` is not.
 
 **Status**: accepted

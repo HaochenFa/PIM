@@ -1,1 +1,1 @@
-"""Unit tests for model/ (the assignment test surface)."""
+"""Unit tests: model/ is the graded coverage surface; App and Terminal use fakes."""

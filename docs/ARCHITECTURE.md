@@ -55,8 +55,8 @@ controller/
   errors.py            # user-facing failures (no traceback leak)
 pim.py                 # python pim.py
 tests/
-  unit/                # model only; inject now and temp .pim files
-  integration/         # App ↔ PIM (no Terminal)
+  unit/                # model (graded, 100%) plus App/Terminal with fakes
+  integration/         # App ↔ PIM; Terminal ↔ App+PIM (no stdin-reader thread)
   e2e/                 # scripted Terminal.run()
 ```
 
