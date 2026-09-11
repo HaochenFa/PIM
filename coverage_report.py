@@ -98,9 +98,10 @@ def _countable_lines(source: str) -> set[int]:
     execution to the first line, so continuation lines are not required.
     """
     tree = ast.parse(source)
+    docstrings = _docstring_linenos(tree)
     lines: set[int] = set()
     for node in ast.walk(tree):
-        if isinstance(node, ast.Expr) and _is_docstring(node):
+        if isinstance(node, ast.Expr) and node.lineno in docstrings:
             continue
         if isinstance(node, (ast.stmt, ast.excepthandler)):
             lines.add(node.lineno)
@@ -110,12 +111,25 @@ def _countable_lines(source: str) -> set[int]:
     return lines
 
 
-def _is_docstring(node: ast.Expr) -> bool:
-    """True when `node` is a module, class, or function docstring."""
-    value = node.value
-    if isinstance(value, ast.Constant) and isinstance(value.value, str):
-        return True
-    return False
+def _docstring_linenos(tree: ast.AST) -> set[int]:
+    """Line numbers of the first-statement docstring of a module, class, or function."""
+    lines: set[int] = set()
+    for node in ast.walk(tree):
+        if not isinstance(
+            node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
+        ):
+            continue
+        if not node.body:
+            continue
+        first = node.body[0]
+        if isinstance(first, ast.Expr) and _is_string_constant(first.value):
+            lines.add(first.lineno)
+    return lines
+
+
+def _is_string_constant(value: ast.AST) -> bool:
+    """True when `value` is a string literal expression."""
+    return isinstance(value, ast.Constant) and isinstance(value.value, str)
 
 
 if __name__ == "__main__":
