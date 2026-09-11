@@ -31,12 +31,14 @@ class FakeApp:
 
     def __init__(self):
         self.status = ""
+        self.status_kind = "info"
         self.print_text = ""
         self._dirty = False
         self._bound = None
         self._result = []
         self._selected = None
         self._criterion = False
+        self._criterion_line = None
         self._due = []
         self.calls = []
         self.save_ok = True
@@ -74,6 +76,9 @@ class FakeApp:
     def has_criterion(self) -> bool:
         return self._criterion
 
+    def criterion_line(self):
+        return self._criterion_line
+
     def due_alarms(self, now):
         return list(self._due)
 
@@ -98,12 +103,19 @@ class FakeApp:
     def search(self, line: str):
         self.calls.append(("search", line))
         self._criterion = True
+        self._criterion_line = line
         self.status = "1 match(es)"
+        self.status_kind = "ok"
+        if self._result:
+            self._selected = self._result[0]
+        return True
 
     def clear_search(self):
         self.calls.append(("clear",))
         self._criterion = False
+        self._criterion_line = None
         self.status = "Search cleared"
+        self.status_kind = "info"
 
     def select_row(self, number):
         self.calls.append(("row", number))
