@@ -9,9 +9,9 @@ This is not a quick-start and not an implementation snapshot. User-facing overvi
 If anything conflicts, follow this order:
 
 1. `Project Description.pdf` (the COMP3211 brief; cannot be waived)
-2. `docs/01-product-description.md`
-3. `docs/02-architecture.md`
-4. `docs/03-acceptance.md`
+2. `docs/PRODUCT.md`
+3. `docs/ARCHITECTURE.md`
+4. `docs/ACCEPTANCE.md`
 5. `CONTEXT.md`
 6. `docs/adr/`
 7. `AGENTS.md`
@@ -54,10 +54,10 @@ If a user or another agent asks for an out-of-scope feature, refuse it against t
 | Topic | Read |
 |---|---|
 | Domain words | `CONTEXT.md` |
-| Fields, search grammar, interaction | `docs/01-product-description.md` |
-| Packages, `PIM` interface, JSON schema, event loop | `docs/02-architecture.md` |
-| Observable tests, fixture, ZIP, demo script | `docs/03-acceptance.md` |
-| Why a choice was made | `docs/adr/0001`–`0015` |
+| Fields, search grammar, interaction | `docs/PRODUCT.md` |
+| Packages, `PIM` interface, JSON schema, event loop | `docs/ARCHITECTURE.md` |
+| Observable tests, fixture, ZIP, demo script | `docs/ACCEPTANCE.md` |
+| Why a choice was made | `docs/adr/0001`–`0016` |
 
 Use glossary terms as written. Forbidden substitutions:
 
@@ -101,7 +101,7 @@ Use glossary terms as written. Forbidden substitutions:
 - Test **`model` only** unless the user explicitly asks for more. The brief grades model unit tests.
 - Each test must state the behaviour it exercises (name or comment) and assert expected results.
 - Cover: four types create/validate/modify/delete; Id stability; contains / unqualified contains / missing-field time / and-or-not / multi-alarm; save/load round-trip; `due_alarms` with injected `now`; dirty flag; corrupt file does not clobber memory.
-- Prefer the fixture in `docs/03-acceptance.md` section 4.
+- Prefer the fixture in `docs/ACCEPTANCE.md` section 4.
 - Line-coverage report for `model/` belongs at the source root when asked to produce it.
 
 ## Agent working rules
@@ -118,9 +118,9 @@ Use glossary terms as written. Forbidden substitutions:
 
 Before calling implementation work done:
 
-1. `docs/03-acceptance.md` sections 1–3 are met (stories, alerts, NFRs).
+1. `docs/ACCEPTANCE.md` sections 1–3 are met (stories, alerts, NFRs).
 2. `python -m unittest` is green.
-3. `python pim.py` can run the demo script in `docs/03-acceptance.md` section 6 on macOS with stdlib only.
+3. `python pim.py` can run the demo script in `docs/ACCEPTANCE.md` section 6 on macOS with stdlib only.
 4. No third-party imports anywhere in the submitted source.
 
 SRS, typeset design document, videos, and Honour Declaration are separate deliverables. Do not claim those are done when only code is done.
