@@ -30,7 +30,28 @@ When the answer is one of a few values, the composer becomes a selector. You do 
 | Alarm unit | Minute · Hour · Day · Week | `m` `h` `d` `w` |
 | Unsaved changes | Save · Discard · Cancel | Default is **Cancel**. `s` / `d` / `c` |
 
-Free text (note body, names, dates, search criterion, file path) still uses a labelled field. Empty Enter skips an optional field, or keeps a field during modify.
+Free text (note body, names, search criterion, file path) still uses a labelled field. Empty Enter skips an optional field, or keeps a field during modify.
+
+## Date and time (full-screen UI)
+
+Event **start**, Task **deadline**, and an **absolute alarm** open a calendar, not a blank to type into. This matches ordinary calendar apps:
+
+- Left: a month grid, week starting Monday
+- Right: times in 15-minute steps (Hong Kong Time)
+- The bar under the grid shows what you will save, e.g. `Tue 15 September 2026  18:30  HKT`
+
+| Key | What it does |
+|---|---|
+| `←` `→` `↑` `↓` | Move by day or week (date) / 15 minutes or 1 hour (time) |
+| `Tab` | Switch between the grid and the time list |
+| `[` `]` | Previous / next month |
+| `t` | Jump to today |
+| `+` `-` | Nudge one minute |
+| `n` | Skip an optional deadline (or type `none` in the line UI) |
+| `Enter` | Use the highlighted date and time |
+| `Esc` | Cancel |
+
+You do not type ISO 8601. The line-oriented UI (tests, redirected input) still accepts `YYYY-MM-DD HH:MM` or a full ISO instant; the prompt names that format and Hong Kong Time.
 
 ## Keys (full-screen UI)
 
@@ -85,7 +106,7 @@ deadline|start|alarm  < | > | =  <datetime>
 
 `contains` is a case-insensitive substring (`str.casefold`), not fuzzy match. A time comparison on a missing field is false. `alarm` matches if **any** effective alarm time matches. Precedence: `!` then `&&` then `||`.
 
-Datetimes: ISO 8601, or `YYYY-MM-DD HH:MM`. If you omit a zone, Hong Kong Time is used.
+Datetimes: in the full-screen UI, pick from the calendar. In the line UI, ISO 8601 or `YYYY-MM-DD HH:MM`. If you omit a zone, Hong Kong Time is used.
 
 ## Alarms (Event)
 
