@@ -1,0 +1,36 @@
+#!/bin/sh
+# Block commit unless unit tests (100% model/ coverage), integration, and e2e pass.
+# Standard library only. Bypass with git commit --no-verify.
+
+set -e
+ROOT=$(git rev-parse --show-toplevel)
+cd "$ROOT"
+
+if command -v python3 >/dev/null 2>&1; then
+    PYTHON=python3
+elif command -v python >/dev/null 2>&1; then
+    PYTHON=python
+else
+    echo "pre-commit: python3 not found" >&2
+    exit 1
+fi
+
+echo "pre-commit: unit tests + 100% model/ line coverage"
+if ! "$PYTHON" coverage_report.py --check; then
+    echo "pre-commit: unit tests failed or model/ coverage is not 100%" >&2
+    exit 1
+fi
+
+echo "pre-commit: integration tests"
+if ! "$PYTHON" -m unittest discover -s tests/integration -t .; then
+    echo "pre-commit: integration tests failed" >&2
+    exit 1
+fi
+
+echo "pre-commit: e2e tests"
+if ! "$PYTHON" -m unittest discover -s tests/e2e -t .; then
+    echo "pre-commit: e2e tests failed" >&2
+    exit 1
+fi
+
+echo "pre-commit: all gates passed"
