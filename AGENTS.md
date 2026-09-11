@@ -9,9 +9,9 @@ This is not a quick-start and not an implementation snapshot. User-facing overvi
 If anything conflicts, follow this order:
 
 1. `Project Description.pdf` (the COMP3211 brief; cannot be waived)
-2. `docs/01-product-description.md`
-3. `docs/02-architecture.md`
-4. `docs/03-acceptance.md`
+2. `docs/PRODUCT.md`
+3. `docs/ARCHITECTURE.md`
+4. `docs/ACCEPTANCE.md`
 5. `CONTEXT.md`
 6. `docs/adr/`
 7. `AGENTS.md`
@@ -54,10 +54,10 @@ If a user or another agent asks for an out-of-scope feature, refuse it against t
 | Topic | Read |
 |---|---|
 | Domain words | `CONTEXT.md` |
-| Fields, search grammar, interaction | `docs/01-product-description.md` |
-| Packages, `PIM` interface, JSON schema, event loop | `docs/02-architecture.md` |
-| Observable tests, fixture, ZIP, demo script | `docs/03-acceptance.md` |
-| Why a choice was made | `docs/adr/0001`–`0015` |
+| Fields, search grammar, interaction | `docs/PRODUCT.md` |
+| Packages, `PIM` interface, JSON schema, event loop | `docs/ARCHITECTURE.md` |
+| Observable tests, fixture, ZIP, demo script | `docs/ACCEPTANCE.md` |
+| Why a choice was made | `docs/adr/0001`–`0016` |
 
 Use glossary terms as written. Forbidden substitutions:
 
@@ -101,7 +101,7 @@ Use glossary terms as written. Forbidden substitutions:
 - Test **`model` only** unless the user explicitly asks for more. The brief grades model unit tests.
 - Each test must state the behaviour it exercises (name or comment) and assert expected results.
 - Cover: four types create/validate/modify/delete; Id stability; contains / unqualified contains / missing-field time / and-or-not / multi-alarm; save/load round-trip; `due_alarms` with injected `now`; dirty flag; corrupt file does not clobber memory.
-- Prefer the fixture in `docs/03-acceptance.md` section 4.
+- Prefer the fixture in `docs/ACCEPTANCE.md` section 4.
 - Line-coverage report for `model/` belongs at the source root when asked to produce it.
 
 ## Agent working rules
@@ -111,16 +111,90 @@ Use glossary terms as written. Forbidden substitutions:
 - When implementing, keep `model` the test surface: if a rule cannot be tested through `PIM` / Criterion, it is in the wrong package.
 - If you must choose a detail not in the docs (e.g. exact menu keystrokes), pick the smallest option that still satisfies acceptance, and record it in a new ADR only if it is hard to reverse, surprising, and a real trade-off.
 - Do not update `CONTEXT.md` with implementation types, file paths, or Python names. Glossary is domain only.
-- Do not rewrite `docs/01`–`03` or accepted ADRs unless the user explicitly changes a product decision.
+- Do not rewrite `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/ACCEPTANCE.md`, or accepted ADRs unless the user explicitly changes a product decision.
 - Honour Declaration: GenAI use is allowed if acknowledged. Do not invent a false “no GenAI” claim. Contribution splits are the group’s, not the agent’s.
+
+## Commit messages
+
+Every commit message uses Conventional Commits, with a **scope** and a body that is detailed enough that a later reader does not need the diff to know what changed and why.
+
+Format:
+
+```
+<type>(<scope>): <short summary>
+
+<body>
+```
+
+- **type**: `feat`, `fix`, `refactor`, `test`, `docs`, `chore` (use `feat` for user-visible behaviour, `fix` for defects, `refactor` for structure without behaviour change).
+- **scope**: usually `PIM`, or a tighter one when the change is local (`model`, `view`, `controller`, `tests`).
+- **summary**: imperative, lowercase after the colon, no trailing period; one line.
+- **body**: required unless the change is trivial (typo, path-only). State what changed, which stories or ADRs it serves, and any behaviour a reviewer must not miss. Wrap at ~72 characters.
+
+Examples:
+
+```
+feat(PIM): add field-driven create and modify wizards
+
+Replace per-type prompt closures in the View with FieldSpec lists on
+each PIR class. Alarms are RelativeAlarm/AbsoluteAlarm objects, not
+JSON dicts. Empty modify no longer marks the collection dirty.
+```
+
+```
+fix(model): keep load from clobbering memory on bad JSON
+```
+
+Do not write one-line messages like `update` or `INIT (PLAN)`. Do not omit the type/scope prefix.
+
+### Granularity
+
+Each commit has **one job**. Prefer a few medium-sized commits over one dump of everything the agent did in a turn.
+
+When staging, split if any of these is true:
+
+- different **types** (`feat` vs `fix` vs `refactor` vs `docs` vs `test`)
+- different **layers** (`model` vs `view`/`controller` vs manuals vs `AGENTS.md`)
+- independent behaviour a reviewer could accept or revert on its own
+
+Do this even when the user said “implement/fix/refactor all of this” in one request, and even when the agent produced every file in one session. Implement together if that is faster; **commit separately**.
+
+Do **not** split a single atomic behaviour across commits (e.g. a `model` change that would fail tests until the matching `tests/` file lands — those stay together). Do not invent tiny commits for whitespace or import reorder.
+
+Order dependent commits so each leaves `python -m unittest` green.
+
+### Pull request summary
+
+The PR **title** follows Conventional Commits (`feat(PIM): …`). The PR **body** is the reviewer’s map of the change: detailed enough to understand intent, scope, and risk without reading every hunk; specific enough that a reviewer knows what to try and what is *not* in the PR.
+
+Do not paste the commit list as the whole summary. Do not write a one-line body (`implement PIM`, `see commits`). English, same as other course artefacts this agent writes.
+
+Required sections, in this order:
+
+1. **Summary** — what shipped and why (user stories, ADRs, or the defect). Two to five sentences. Name the user-visible behaviour.
+2. **What changed** — bullets by layer (`model`, `view`/`controller`, tests, docs). Call out behaviour a reviewer must not miss (atomic failure, dirty load/quit, Current Result vs `print all`, injected `now`).
+3. **How to check** — exact commands (`python -m unittest`, `python pim.py`, demo steps from `docs/ACCEPTANCE.md` §6). State the platform if it matters (macOS).
+4. **Out of scope** — explicit: extra features not in Appendix B, and course artefacts this PR does not claim (SRS, videos, Honour Declaration) when that applies.
+
+Optional when useful: **Risks / follow-ups** (known gaps, coverage holes, UI edges). **Commits** as a short list only after the summary, not instead of it.
+
+The body must stay true: do not claim tests, manuals, or stories that the diff does not contain. If the PR is a draft, say what still has to land before Ready.
+
+## Comments and docstrings
+
+Code the agent writes or substantially edits must be documented in **English**:
+
+- Every public module, class, and function gets a docstring. Modules: what the file is for. Classes: the type’s role in MVC / the domain. Functions/methods: arguments, return value, and error cases when they are not obvious from the name.
+- Add a short line comment at non-obvious points: atomic copy-then-replace, dirty-file rules, EOF vs quit, criterion precedence, why `now` is injected, why a failed command must not mutate.
+- Do not narrate the code (`# increment i`). Do not leave commented-out code. Docstrings explain behaviour and invariants, not the history of the change.
 
 ## Required gates
 
 Before calling implementation work done:
 
-1. `docs/03-acceptance.md` sections 1–3 are met (stories, alerts, NFRs).
+1. `docs/ACCEPTANCE.md` sections 1–3 are met (stories, alerts, NFRs).
 2. `python -m unittest` is green.
-3. `python pim.py` can run the demo script in `docs/03-acceptance.md` section 6 on macOS with stdlib only.
+3. `python pim.py` can run the demo script in `docs/ACCEPTANCE.md` section 6 on macOS with stdlib only.
 4. No third-party imports anywhere in the submitted source.
 
 SRS, typeset design document, videos, and Honour Declaration are separate deliverables. Do not claim those are done when only code is done.

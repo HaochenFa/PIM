@@ -1,6 +1,6 @@
 # Technical Architecture
 
-This is the architecture the assignment’s design document must explain: the chosen pattern, the main code parts and how they relate, and the collaboration for “search then update”. Implementation follows this file. Domain meaning follows `docs/01-product-description.md` and `CONTEXT.md`.
+This is the architecture the assignment’s design document must explain: the chosen pattern, the main code parts and how they relate, and the collaboration for “search then update”. Implementation follows this file. Domain meaning follows `docs/PRODUCT.md` and `CONTEXT.md`.
 
 ---
 

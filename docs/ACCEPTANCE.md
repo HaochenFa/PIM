@@ -1,6 +1,6 @@
 # Acceptance Criteria
 
-Subject: the PIM implemented from `docs/01-product-description.md` and `docs/02-architecture.md`. Pass means every Appendix B user story is demonstrable and unit-testable, Appendix A quality items have evidence, and out-of-scope features are absent.
+Subject: the PIM implemented from `docs/PRODUCT.md` and `docs/ARCHITECTURE.md`. Pass means every Appendix B user story is demonstrable and unit-testable, Appendix A quality items have evidence, and out-of-scope features are absent.
 
 Each clause below is **observable**. A failed command must not change the Working Collection, must not print a traceback, and must not exit the process.
 

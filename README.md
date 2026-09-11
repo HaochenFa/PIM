@@ -8,9 +8,9 @@ The assignment brief is [`Project Description.pdf`](Project Description.pdf). Pr
 
 | File | What it is |
 |---|---|
-| [`docs/01-product-description.md`](docs/01-product-description.md) | Product scope, PIR types, search, persistence, interaction |
-| [`docs/02-architecture.md`](docs/02-architecture.md) | MVC, `model` interface, event loop, `.pim` JSON, search-then-update sequence |
-| [`docs/03-acceptance.md`](docs/03-acceptance.md) | Observable criteria for US1–US11, tests, ZIP contents, demo script |
+| [`docs/PRODUCT.md`](docs/PRODUCT.md) | Product scope, PIR types, search, persistence, interaction |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | MVC, `model` interface, event loop, `.pim` JSON, search-then-update sequence |
+| [`docs/ACCEPTANCE.md`](docs/ACCEPTANCE.md) | Observable criteria for US1–US11, tests, ZIP contents, demo script |
 | [`CONTEXT.md`](CONTEXT.md) | Domain glossary (PIR, Id, Alarm, Current Result, …) |
 | [`docs/adr/`](docs/adr/) | Architecture decision records |
 | [`AGENTS.md`](AGENTS.md) | Rules for AI agents: precedence, scope, architecture, gates |
@@ -21,7 +21,7 @@ Use the glossary terms as written. Do not treat **Name** as a title, **Label** a
 
 A single-user terminal PIM. The user manages Notes, Tasks, Events, and Contacts in a Working Collection, searches with contains / time comparison / `&&` `||` `!`, and stores the collection in a UTF-8 JSON file with the extension `.pim`. Python 3 and the standard library only. No GUI, no third-party TUI, no recurrence, no network.
 
-## Planned layout
+## Layout
 
 ```
 model/          # required package name; the unit-test surface
@@ -34,7 +34,7 @@ CONTEXT.md
 README.md
 ```
 
-Code packages are not in the tree yet. Create them as specified in the architecture document.
+Run with `python pim.py`. Tests: `python -m unittest`. Coverage: `python coverage_report.py`. See [`DEVELOPER.md`](DEVELOPER.md) and [`USER.md`](USER.md). Story coverage: [`REQUIREMENTS.md`](REQUIREMENTS.md).
 
 ## Constraints that affect every commit
 
@@ -48,4 +48,4 @@ Code packages are not in the tree yet. Create them as specified in the architect
 
 One ZIP by **20:00, 20 November 2026**: SRS, design document, source, manuals, ≤4 min system video, requirements coverage table, model tests and coverage report, presentation PDF and ≤5 min recording, Honour Declaration at the ZIP root.
 
-Checklist and demo script: [`docs/03-acceptance.md`](docs/03-acceptance.md).
+Checklist and demo script: [`docs/ACCEPTANCE.md`](docs/ACCEPTANCE.md).
