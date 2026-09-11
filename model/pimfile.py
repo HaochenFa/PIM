@@ -19,6 +19,7 @@ FORMAT = "pim/v1"
 
 
 def require_pim_extension(path) -> Path:
+    """Return `path` as a Path. Raises ExtensionError if the suffix is not `.pim`."""
     path = Path(path)
     if path.suffix.casefold() != ".pim":
         raise ExtensionError("path must have a .pim extension")
@@ -26,6 +27,7 @@ def require_pim_extension(path) -> Path:
 
 
 def append_pim_extension(path) -> Path:
+    """Append `.pim` when omitted; leave an existing `.pim` suffix unchanged."""
     path = Path(path)
     if path.suffix.casefold() == ".pim":
         return path
@@ -33,6 +35,7 @@ def append_pim_extension(path) -> Path:
 
 
 def dump(next_id: int, pirs: list[PIR]) -> str:
+    """UTF-8 JSON document for a PIM File (`format: pim/v1`)."""
     payload = {
         "format": FORMAT,
         "next_id": next_id,
@@ -42,6 +45,7 @@ def dump(next_id: int, pirs: list[PIR]) -> str:
 
 
 def write_pim_file(path, next_id: int, pirs: list[PIR]) -> Path:
+    """Atomic write: temp file in the same directory, then os.replace."""
     path = append_pim_extension(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     data = dump(next_id, pirs)
@@ -62,6 +66,7 @@ def write_pim_file(path, next_id: int, pirs: list[PIR]) -> Path:
 
 
 def read_pim_file(path) -> tuple[int, list[PIR]]:
+    """Parse a `.pim` file. Raises FileFormatError without mutating the caller."""
     path = require_pim_extension(path)
     try:
         with open(path, encoding="utf-8") as handle:

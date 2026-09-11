@@ -4,6 +4,7 @@ from threading import Thread
 
 
 def start_stdin_reader(queue, stdin):
+    """Daemon thread: enqueue each line; enqueue None on EOF. Never touches model.PIM."""
     def run():
         while True:
             line = stdin.readline()

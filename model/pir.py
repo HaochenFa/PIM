@@ -27,7 +27,7 @@ KIND_ALARMS = "alarms"
 
 @dataclass(frozen=True)
 class FieldSpec:
-    """One promptable field. View walks this list; it does not switch on type_name."""
+    """One PIR field: storage key, prompt label, kind, and whether it is required."""
 
     key: str
     label: str
@@ -36,43 +36,50 @@ class FieldSpec:
 
 
 class PIMError(Exception):
-    """User-facing domain failure. Controller maps this to a status line."""
+    """Domain rule violation. `status_message` is the specific English error."""
 
     def status_message(self) -> str:
+        """English text for this failure."""
         return str(self)
 
 
 class ValidationError(PIMError):
-    pass
+    """A required field is missing or a value is illegal."""
 
 
 class NotFound(PIMError):
-    pass
+    """No PIR has this Id."""
 
 
 class ParseError(PIMError):
+    """Search criterion syntax is invalid."""
+
     def status_message(self) -> str:
         return f"search syntax error: {self}"
 
 
 class DirtyLoadError(PIMError):
-    pass
+    """load while the collection has unsaved changes, without force."""
 
 
 class FileFormatError(PIMError):
+    """The path is not a readable pim/v1 JSON file."""
+
     def status_message(self) -> str:
         return f"not a PIM file: {self}"
 
 
 class ExtensionError(PIMError):
-    pass
+    """The path does not use the .pim extension."""
 
 
 def is_blank(value) -> bool:
+    """True for None or a whitespace-only string (a missing value)."""
     return value is None or (isinstance(value, str) and value.strip() == "")
 
 
 def require_text(value, field: str) -> str:
+    """Return a stripped required string. Raises ValidationError if blank."""
     if is_blank(value):
         raise ValidationError(f"{field} is required")
     if not isinstance(value, str):
@@ -81,6 +88,7 @@ def require_text(value, field: str) -> str:
 
 
 def optional_text(value) -> str | None:
+    """Strip an optional string; blank becomes None."""
     if is_blank(value):
         return None
     if not isinstance(value, str):
@@ -89,6 +97,7 @@ def optional_text(value) -> str | None:
 
 
 def minute_floor(dt: datetime) -> datetime:
+    """Truncate to minute. Raises ValidationError if naive."""
     if dt.tzinfo is None:
         raise ValidationError("datetime must be timezone-aware")
     return dt.replace(second=0, microsecond=0)
@@ -121,6 +130,7 @@ def parse_datetime(value) -> datetime:
 
 
 def parse_optional_datetime(value) -> datetime | None:
+    """Parse an optional instant; blank or `none` is None."""
     if is_blank(value):
         return None
     if isinstance(value, str) and value.strip().casefold() == CLEAR:
@@ -129,10 +139,12 @@ def parse_optional_datetime(value) -> datetime | None:
 
 
 def format_datetime(dt: datetime) -> str:
+    """ISO 8601 at second resolution, timezone-aware."""
     return minute_floor(dt).isoformat(timespec="seconds")
 
 
 def parse_alarm(spec) -> RelativeAlarm | AbsoluteAlarm:
+    """Build a RelativeAlarm or AbsoluteAlarm from an object or JSON dict."""
     if isinstance(spec, (RelativeAlarm, AbsoluteAlarm)):
         return spec
     if not isinstance(spec, dict):
@@ -146,6 +158,8 @@ def parse_alarm(spec) -> RelativeAlarm | AbsoluteAlarm:
 
 
 class RelativeAlarm:
+    """Alarm at start, or N units before start. Effective time moves when start changes."""
+
     def __init__(self, amount, unit):
         try:
             amount = int(amount)
@@ -164,12 +178,15 @@ class RelativeAlarm:
         self.unit = unit_key
 
     def effective(self, start: datetime) -> datetime:
+        """`start` minus the stored duration (0 = at start)."""
         return start - RELATIVE_UNITS[self.unit] * self.amount
 
     def to_json(self) -> dict:
+        """JSON object with kind, amount, and unit."""
         return {"kind": "relative", "amount": self.amount, "unit": self.unit}
 
     def kind_label(self) -> str:
+        """Human-readable relative trigger, e.g. `relative 1 day before start`."""
         if self.amount == 0:
             return "relative at start"
         unit = self.unit if self.amount == 1 else self.unit + "s"
@@ -177,20 +194,27 @@ class RelativeAlarm:
 
 
 class AbsoluteAlarm:
+    """Alarm at a stored instant. Changing start does not move it."""
+
     def __init__(self, at):
         self.at = parse_datetime(at)
 
     def effective(self, start: datetime) -> datetime:
+        """The stored instant; `start` is ignored."""
         return self.at
 
     def to_json(self) -> dict:
+        """JSON object with kind and `at`."""
         return {"kind": "absolute", "at": format_datetime(self.at)}
 
     def kind_label(self) -> str:
+        """Always `absolute`."""
         return "absolute"
 
 
 class DueAlarm:
+    """One OVERDUE or SOON alarm at an injected `now`. `key` is (event Id, alarm index)."""
+
     def __init__(self, event_id: int, alarm_index: int, at: datetime, status: str, description: str):
         self.event_id = event_id
         self.alarm_index = alarm_index
@@ -199,10 +223,13 @@ class DueAlarm:
         self.description = description
 
     def key(self) -> tuple[int, int]:
+        """Dismiss identity: (event Id, alarm index)."""
         return (self.event_id, self.alarm_index)
 
 
 class PIR:
+    """One record. Id is identity; type_name is immutable after creation."""
+
     type_name: str = ""
     FIELDS: tuple[FieldSpec, ...] = ()
 
@@ -210,6 +237,7 @@ class PIR:
         self.id = pir_id
 
     def display_field(self, key: str) -> str:
+        """Current value of `key` as a prompt hint (`none` if missing)."""
         value = getattr(self, key)
         if value is None:
             return "none"
@@ -221,21 +249,27 @@ class PIR:
 
     @property
     def display_name(self) -> str:
+        """Derived list label: Note first line, Task/Event description, Contact name."""
         raise NotImplementedError
 
     def text_fields(self) -> list[str]:
+        """Text values used by unqualified `contains`."""
         raise NotImplementedError
 
     def text_value(self, field: str) -> str | None:
+        """Named text field, or None if this type has no such field."""
         return None
 
     def time_values(self, field: str) -> list[datetime]:
+        """Instants for a time comparison; empty if the field is missing."""
         return []
 
     def relevant_time(self) -> datetime | None:
+        """Deadline or start for the Current Result table, else None."""
         return None
 
     def modify(self, fields: dict) -> None:
+        """Apply updates in place. Raises ValidationError if type would change."""
         if "type" in fields and not is_blank(fields["type"]):
             wanted = str(fields["type"]).strip().casefold()
             if wanted != self.type_name:
@@ -246,13 +280,17 @@ class PIR:
         raise NotImplementedError
 
     def to_json(self) -> dict:
+        """pim/v1 object for this PIR, including Id and type."""
         raise NotImplementedError
 
     def detail_lines(self) -> list[tuple[str, str]]:
+        """(label, value) rows for print and the detail pane."""
         raise NotImplementedError
 
 
 class Note(PIR):
+    """PIR whose body is required `text`."""
+
     type_name = "note"
     FIELDS = (FieldSpec("text", "text", KIND_TEXT, required=True),)
 
@@ -286,6 +324,8 @@ class Note(PIR):
 
 
 class Task(PIR):
+    """PIR with required `description` and optional `deadline`."""
+
     type_name = "task"
     FIELDS = (
         FieldSpec("description", "description", KIND_TEXT, required=True),
@@ -346,6 +386,8 @@ class Task(PIR):
 
 
 class Event(PIR):
+    """PIR with required `description` and `start`, and zero or more alarms."""
+
     type_name = "event"
     FIELDS = (
         FieldSpec("description", "description", KIND_TEXT, required=True),
@@ -382,6 +424,7 @@ class Event(PIR):
         return self.start
 
     def effective_alarm_times(self) -> list[datetime]:
+        """Effective Alarm Times of every alarm, relative ones using current start."""
         return [alarm.effective(self.start) for alarm in self.alarms]
 
     def _apply(self, fields: dict) -> None:
@@ -427,6 +470,8 @@ class Event(PIR):
 
 
 class Contact(PIR):
+    """PIR with required `name` and optional `address` and `mobile`."""
+
     type_name = "contact"
     FIELDS = (
         FieldSpec("name", "name", KIND_TEXT, required=True),
@@ -494,6 +539,7 @@ class Contact(PIR):
 
 
 def pir_class(type_name: str):
+    """PIR subclass for `type_name`, or None if unknown."""
     name = type_name.casefold()
     for cls in (Note, Task, Event, Contact):
         if cls.type_name == name:
@@ -502,6 +548,7 @@ def pir_class(type_name: str):
 
 
 def pir_from_json(data: dict) -> PIR:
+    """Reconstruct a PIR from a pim/v1 object. Raises FileFormatError if invalid."""
     if not isinstance(data, dict):
         raise FileFormatError("PIR must be an object")
     try:

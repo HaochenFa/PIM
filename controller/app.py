@@ -10,6 +10,7 @@ from model.pimfile import append_pim_extension
 
 
 def format_pir(pir) -> str:
+    """One PIR as `key: value` lines for print."""
     return "\n".join(f"{key}: {value}" for key, value in pir.detail_lines())
 
 
@@ -26,7 +27,10 @@ _CREATE = {
 
 
 class App:
+    """One completed user action → `model.PIM`. Holds Current Result and selection."""
+
     def __init__(self, pim: PIM):
+        """Bind to an empty or existing Working Collection."""
         self.pim = pim
         self._criterion = None
         self._result = []
@@ -36,15 +40,19 @@ class App:
         self._refresh()
 
     def bound_path(self):
+        """Bound File path, or None if untitled."""
         return self.pim.bound_path()
 
     def is_dirty(self) -> bool:
+        """True if the Working Collection has unsaved changes."""
         return self.pim.is_dirty()
 
     def save_target(self, path) -> str:
+        """Path that save would write, with `.pim` appended if omitted."""
         return str(append_pim_extension(path))
 
     def would_overwrite(self, path) -> bool:
+        """True if `save as` would replace a file that is not the Bound File."""
         target = Path(self.save_target(path))
         bound = self.pim.bound_path()
         if not target.exists():
@@ -57,12 +65,15 @@ class App:
             return str(target) != str(bound)
 
     def clear_print(self):
+        """Drop the last print buffer."""
         self.print_text = ""
 
     def current_result(self):
+        """PIRs in the current list (search hits, or the whole collection)."""
         return list(self._result)
 
     def selected(self):
+        """The selected PIR, or None if none / it left Current Result."""
         if self._selected_id is None:
             return None
         try:
@@ -72,16 +83,20 @@ class App:
             return None
 
     def selected_id(self):
+        """Id of the selection, or None."""
         pir = self.selected()
         return None if pir is None else pir.id
 
     def has_criterion(self) -> bool:
+        """True when Current Result is a search hit list."""
         return self._criterion is not None
 
     def due_alarms(self, now):
+        """Due alarms at injected `now`."""
         return self.pim.due_alarms(now)
 
     def create(self, type_name, fields):
+        """Create one PIR. On failure, status is set and the collection is unchanged."""
         factory = _CREATE.get(type_name)
         if factory is None:
             self.status = f"unknown PIR type: {type_name}"
@@ -89,6 +104,7 @@ class App:
         return self._create(lambda: factory(self.pim, fields), type_name.capitalize())
 
     def modify(self, fields):
+        """Modify the selection. Empty `fields` is a no-op and does not mark dirty."""
         pir = self.selected()
         if pir is None:
             self.status = "no PIR selected"
@@ -109,6 +125,7 @@ class App:
         return updated
 
     def delete_selected(self):
+        """Delete the selection after the View has confirmed. False if none selected."""
         pir = self.selected()
         if pir is None:
             self.status = "no PIR selected"
@@ -124,6 +141,7 @@ class App:
         return True
 
     def search(self, line: str):
+        """Replace Current Result with matches. Syntax error leaves the list unchanged."""
         try:
             criterion = parse_criterion(line)
             hits = self.pim.search(criterion)
@@ -136,11 +154,13 @@ class App:
         self.status = f"{len(hits)} match(es)"
 
     def clear_search(self):
+        """Restore Current Result to the whole collection."""
         self._criterion = None
         self._refresh()
         self.status = "Search cleared"
 
     def select_row(self, number):
+        """Select by 1-based row of Current Result. Row numbers are not identity."""
         try:
             index = int(number)
         except (TypeError, ValueError):
@@ -153,6 +173,7 @@ class App:
         self.status = f"Selected Id {self._selected_id}"
 
     def select_id(self, pir_id):
+        """Select by Id. Status names NotFound if missing."""
         try:
             pir = self.pim.get(pir_id)
         except PIMError as exc:
@@ -162,6 +183,7 @@ class App:
         self.status = f"Selected Id {pir.id}"
 
     def print_selected(self):
+        """Fill print_text with every field of the selection."""
         pir = self.selected()
         if pir is None:
             self.status = "no PIR selected"
@@ -171,6 +193,7 @@ class App:
         return self.print_text
 
     def print_all(self):
+        """Fill print_text with every PIR in Current Result, not the unfiltered collection."""
         if not self._result:
             self.print_text = "(Current Result is empty)"
         else:
@@ -179,6 +202,7 @@ class App:
         return self.print_text
 
     def save(self, path=None):
+        """Write the Bound File, or `path` for save as. False on domain or OS failure."""
         try:
             if path is None:
                 path = self.pim.bound_path()
@@ -192,6 +216,7 @@ class App:
         return True
 
     def load(self, path, force=False):
+        """Replace the collection. `force` discards unsaved changes. False on failure."""
         try:
             self.pim.load(path, force=force)
         except PIMError as exc:
