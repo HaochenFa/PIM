@@ -6,7 +6,7 @@ This is the architecture the assignment’s design document must explain: the ch
 
 ## 1. Architectural pattern: MVC
 
-**MVC** is the pattern. The assignment defines the system model as a separate package and as the only required unit-test surface. MVC keeps testable domain rules (PIR, criteria, store/load) away from terminal I/O (threads, ANSI, keyboard).
+**MVC** is the pattern. The assignment defines the system model as a separate package and as the only required unit-test surface. MVC keeps testable domain rules (PIR, criteria, store/load) away from terminal I/O (threads, curses, keyboard).
 
 Not a web layered architecture. Not an extra hexagonal port for the filesystem: persistence is a local file, and tests use a temporary file (local-substitutable). A one-implementation `Storage` interface would be a fake seam.
 
@@ -39,7 +39,7 @@ Then: View reads input → Controller calls `PIM` → View draws from PIM state.
 The assignment requires the model in a package named `model`, and the other major parts to be identifiable in the source. Three sibling top-level packages, not `pim.model`:
 
 ```
-model/                 # test surface. no threads, no stdin, no ANSI
+model/                 # test surface. no threads, no stdin, no ANSI, no curses
   __init__.py          # exports PIM, Criterion constructors, PIR types
   pim.py               # Working Collection, dirty, bound path, save/load, due_alarms
   pir.py               # PIR hierarchy
@@ -47,8 +47,12 @@ model/                 # test surface. no threads, no stdin, no ANSI
   pimfile.py           # JSON codec (still model: US10/US11 are domain)
 view/
   __init__.py
-  terminal.py          # layout, event loop, Alarm Alert, dismissed set
-  stdin_reader.py      # puts one line string on a Queue
+  terminal.py          # wizards, Alarm Alert, dismissed set, run() branch
+  curses_ui.py         # TTY: stdlib curses session
+  theme.py             # named colour roles (256 / 8 / mono)
+  layout.py            # shared screen model (curses and line UI)
+  widgets.py           # selectors and calendar
+  stdin_reader.py      # non-TTY: puts one line string on a Queue
 controller/
   __init__.py
   app.py               # one user action → PIM call
@@ -114,6 +118,18 @@ Criterion.matches(pir) -> bool
 
 The main thread must not block on timeout-free `input()`, or Alarm Alerts appear only after Enter. The PIM also must not start a second OS process.
 
+Interactive TTY (`stdin` and `stdout` are TTYs, `PIM_NO_CURSES` unset):
+
+```
+curses.wrapper
+    timeout(500); get_wch
+    due = pim.due_alarms(now)
+    if snapshot changed: paint()
+    key → accelerator or one prompt line → controller
+```
+
+Tests and redirected stdio:
+
 ```
 stdin reader thread (daemon)
     readline → Queue.put(line)
@@ -132,6 +148,7 @@ Constraints:
 - Do not repaint the whole screen every tick; repaint only when the due set, dismissed set, Working Collection, Bound File, Current Result, selection, or status line changes.
 - The reader thread never touches `PIM`. No lock.
 - dismissed: in-memory View `set[(event_id, alarm_index)]`, not stored in the file.
+- `curses` is allowed in `view` only (ADR-0018).
 
 ## 5. PIM File JSON
 
@@ -214,7 +231,7 @@ The diagram shows: the criterion is evaluated in model, modify keeps the Id, Rel
 | Layer | Allowed | Forbidden |
 |---|---|---|
 | model | `json`, `datetime`, `zoneinfo`, `pathlib` | `threading`, stdin, ANSI, third-party libraries |
-| view | `threading`, `queue`, `sys.stdin`, clear/ANSI | business rules, JSON schema |
+| view | `threading`, `queue`, `sys.stdin`, `curses`, clear/ANSI | business rules, JSON schema |
 | controller | calls model; maps exceptions to messages | reading/writing files itself; implementing contains |
 
 Unit tests (the assignment requires tests for the model only):

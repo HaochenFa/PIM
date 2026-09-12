@@ -103,7 +103,7 @@ While the View is running, without a second process:
 | Packages | Importable top-level package `model`; identifiable `view` and `controller` |
 | Tests | `unittest`, automatically executable, all pass; comments or names state the behaviour; assertions state expected results |
 | Coverage | Line-coverage report for `model/` at the source root |
-| Interaction | Terminal; no GUI window |
+| Interaction | Terminal; stdlib `curses` on a TTY; line UI for tests; no GUI window |
 | Errors | Invalid input does not crash, exit, or mutate data |
 | Platform | Developer manual guarantees one platform (macOS) |
 | Extra features | No Textual/Rich, no recurrence, no PIR links, no OS notifications |

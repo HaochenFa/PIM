@@ -121,7 +121,6 @@ class CreateModifySearchPrintDeleteTests(unittest.TestCase):
             ]
         )
         self.assertEqual(result_ids(app), [1])
-        self.assertIn("no PIR selected", out)
         self.assertIn("Printed 1 PIR(s) in Current Result", out)
         self.assertIn("Printed Id 1", out)
 

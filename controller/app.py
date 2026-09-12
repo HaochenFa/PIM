@@ -14,6 +14,11 @@ def format_pir(pir) -> str:
     return "\n".join(f"{key}: {value}" for key, value in pir.detail_lines())
 
 
+STATUS_INFO = "info"
+STATUS_OK = "ok"
+STATUS_ERR = "err"
+
+
 _CREATE = {
     "note": lambda pim, fields: pim.create_note(fields.get("text")),
     "task": lambda pim, fields: pim.create_task(fields.get("description"), fields.get("deadline")),
@@ -33,11 +38,21 @@ class App:
         """Bind to an empty or existing Working Collection."""
         self.pim = pim
         self._criterion = None
+        self._criterion_line = None
         self._result = []
         self._selected_id = None
         self.status = ""
+        self.status_kind = STATUS_INFO
         self.print_text = ""
         self._refresh()
+
+    def set_status(self, text: str, kind: str = STATUS_INFO) -> None:
+        """Set the status line and its tone. ``kind`` is info, ok, or err."""
+        self.status = text
+        if kind in {STATUS_INFO, STATUS_OK, STATUS_ERR}:
+            self.status_kind = kind
+        else:
+            self.status_kind = STATUS_INFO
 
     def bound_path(self):
         """Bound File path, or None if untitled."""
@@ -91,6 +106,10 @@ class App:
         """True when Current Result is a search hit list."""
         return self._criterion is not None
 
+    def criterion_line(self):
+        """Source text of the current search, or None when unfiltered."""
+        return self._criterion_line
+
     def due_alarms(self, now):
         """Due alarms at injected `now`."""
         return self.pim.due_alarms(now)
@@ -99,7 +118,7 @@ class App:
         """Create one PIR. On failure, status is set and the collection is unchanged."""
         factory = _CREATE.get(type_name)
         if factory is None:
-            self.status = f"unknown PIR type: {type_name}"
+            self.set_status(f"unknown PIR type: {type_name}", STATUS_ERR)
             return None
         return self._create(lambda: factory(self.pim, fields), type_name.capitalize())
 
@@ -107,89 +126,97 @@ class App:
         """Modify the selection. Empty `fields` is a no-op and does not mark dirty."""
         pir = self.selected()
         if pir is None:
-            self.status = "no PIR selected"
+            self.set_status("no PIR selected", STATUS_ERR)
             return None
         if not fields:
-            self.status = "No changes"
+            self.set_status("No changes", STATUS_INFO)
             return pir
         try:
             updated = self.pim.modify(pir.id, fields)
         except PIMError as exc:
-            self.status = message_for(exc)
+            self.set_status(message_for(exc), STATUS_ERR)
             return None
         if updated is pir:
-            self.status = "No changes"
+            self.set_status("No changes", STATUS_INFO)
             return pir
         self._refresh()
-        self.status = f"Modified Id {updated.id}"
+        self.set_status(f"Modified Id {updated.id}", STATUS_OK)
         return updated
 
     def delete_selected(self):
         """Delete the selection after the View has confirmed. False if none selected."""
         pir = self.selected()
         if pir is None:
-            self.status = "no PIR selected"
+            self.set_status("no PIR selected", STATUS_ERR)
             return False
         try:
             self.pim.delete(pir.id)
         except PIMError as exc:
-            self.status = message_for(exc)
+            self.set_status(message_for(exc), STATUS_ERR)
             return False
         self._selected_id = None
         self._refresh()
-        self.status = f"Deleted Id {pir.id}"
+        self.set_status(f"Deleted Id {pir.id}", STATUS_OK)
         return True
 
-    def search(self, line: str):
-        """Replace Current Result with matches. Syntax error leaves the list unchanged."""
+    def search(self, line: str) -> bool:
+        """Replace Current Result with matches. Syntax error leaves the list unchanged.
+
+        Returns True on success. On parse or search failure returns False,
+        keeps Current Result, and does not store the criterion line.
+        A successful search with hits selects the first row.
+        """
         try:
             criterion = parse_criterion(line)
             hits = self.pim.search(criterion)
         except PIMError as exc:
-            self.status = message_for(exc)
-            return
+            self.set_status(message_for(exc), STATUS_ERR)
+            return False
         self._criterion = criterion
+        self._criterion_line = line
         self._result = hits
-        self._selected_id = None
-        self.status = f"{len(hits)} match(es)"
+        self._selected_id = hits[0].id if hits else None
+        self.set_status(f"{len(hits)} match(es)", STATUS_OK)
+        return True
 
     def clear_search(self):
         """Restore Current Result to the whole collection."""
         self._criterion = None
+        self._criterion_line = None
         self._refresh()
-        self.status = "Search cleared"
+        self.set_status("Search cleared", STATUS_INFO)
 
     def select_row(self, number):
         """Select by 1-based row of Current Result. Row numbers are not identity."""
         try:
             index = int(number)
         except (TypeError, ValueError):
-            self.status = "row number must be an integer"
+            self.set_status("row number must be an integer", STATUS_ERR)
             return
         if index < 1 or index > len(self._result):
-            self.status = f"no row {index} in Current Result"
+            self.set_status(f"no row {index} in Current Result", STATUS_ERR)
             return
         self._selected_id = self._result[index - 1].id
-        self.status = f"Selected Id {self._selected_id}"
+        self.set_status(f"Selected Id {self._selected_id}", STATUS_INFO)
 
     def select_id(self, pir_id):
         """Select by Id. Status names NotFound if missing."""
         try:
             pir = self.pim.get(pir_id)
         except PIMError as exc:
-            self.status = message_for(exc)
+            self.set_status(message_for(exc), STATUS_ERR)
             return
         self._selected_id = pir.id
-        self.status = f"Selected Id {pir.id}"
+        self.set_status(f"Selected Id {pir.id}", STATUS_INFO)
 
     def print_selected(self):
         """Fill print_text with every field of the selection."""
         pir = self.selected()
         if pir is None:
-            self.status = "no PIR selected"
+            self.set_status("no PIR selected", STATUS_ERR)
             return None
         self.print_text = format_pir(pir)
-        self.status = f"Printed Id {pir.id}"
+        self.set_status(f"Printed Id {pir.id}", STATUS_OK)
         return self.print_text
 
     def print_all(self):
@@ -198,7 +225,7 @@ class App:
             self.print_text = "(Current Result is empty)"
         else:
             self.print_text = "\n\n".join(format_pir(pir) for pir in self._result)
-        self.status = f"Printed {len(self._result)} PIR(s) in Current Result"
+        self.set_status(f"Printed {len(self._result)} PIR(s) in Current Result", STATUS_OK)
         return self.print_text
 
     def save(self, path=None):
@@ -210,9 +237,9 @@ class App:
                     raise ValidationError("no file name; use save as")
             self.pim.save(path)
         except PIMError as exc:
-            self.status = message_for(exc)
+            self.set_status(message_for(exc), STATUS_ERR)
             return False
-        self.status = f"Saved {self.pim.bound_path()}"
+        self.set_status(f"Saved {self.pim.bound_path()}", STATUS_OK)
         return True
 
     def load(self, path, force=False):
@@ -220,24 +247,25 @@ class App:
         try:
             self.pim.load(path, force=force)
         except PIMError as exc:
-            self.status = message_for(exc)
+            self.set_status(message_for(exc), STATUS_ERR)
             return False
         self._criterion = None
+        self._criterion_line = None
         self._selected_id = None
         self.print_text = ""
         self._refresh()
-        self.status = f"Loaded {self.pim.bound_path()}"
+        self.set_status(f"Loaded {self.pim.bound_path()}", STATUS_OK)
         return True
 
     def _create(self, factory, label):
         try:
             pir = factory()
         except PIMError as exc:
-            self.status = message_for(exc)
+            self.set_status(message_for(exc), STATUS_ERR)
             return None
         self._selected_id = pir.id
         self._refresh()
-        self.status = f"Created {label} Id {pir.id}"
+        self.set_status(f"Created {label} Id {pir.id}", STATUS_OK)
         return pir
 
     def _refresh(self):

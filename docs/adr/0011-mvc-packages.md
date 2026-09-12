@@ -3,7 +3,7 @@
 The assignment requires the system model in a package named `model`, other major parts identifiable, and grades design on modularity. Python stdlib MVC for this CLI is three sibling packages plus a thin entry script:
 
 - `model/` — Working Collection, PIR types, Search Criterion, PIM File JSON. The test surface.
-- `view/` — terminal layout, event loop, Alarm Alerts. Knows stdin and ANSI. Does not know JSON schema.
+- `view/` — terminal layout, event loop, Alarm Alerts. Knows stdin, ANSI, and stdlib `curses` (TTY only). Does not know JSON schema.
 - `controller/` — parses one user action into `model` calls and asks `view` to render.
 - `pim.py` — instantiates PIM, View, Controller and starts the loop.
 
