@@ -85,4 +85,4 @@ git config core.hooksPath hooks
 
 ## Product decisions
 
-Do not reopen locked decisions. Read `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/ACCEPTANCE.md`, `CONTEXT.md`, the design decisions in `docs/deliverables/DESIGN.md` §6, and `AGENTS.md`. Open work is listed in `docs/BACKLOG.md`.
+Do not reopen locked decisions. Read `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/ACCEPTANCE.md`, `CONTEXT.md`, the design decisions in `docs/deliverables/DESIGN.md` §5, and `AGENTS.md`. Open work is listed in `docs/BACKLOG.md`.

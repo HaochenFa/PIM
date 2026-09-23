@@ -1,6 +1,6 @@
 # Backlog
 
-What is still open before submission (20:00, 20 November 2026), and a short log of what has landed. This file replaces the dated plans that used to be in `docs/plans/`; git history and the merged pull requests keep their full text. Design decisions are in `docs/deliverables/DESIGN.md` §6.
+What is still open before submission (20:00, 20 November 2026), and a short log of what has landed. This file replaces the dated plans that used to be in `docs/plans/`; git history and the merged pull requests keep their full text. Design decisions are in `docs/deliverables/DESIGN.md` §5.
 
 This is not a feature wishlist. Appendix B plus the HCI in `docs/PRODUCT.md` is the whole product (`AGENTS.md`, "Non-negotiable scope"), so nothing here adds a feature.
 
@@ -42,9 +42,9 @@ These do not break a requirement. Fix only if time allows; each must keep `pytho
 | Date | Work | Where |
 |---|---|---|
 | 2026-09-11 | Foundation: `model` / `view` / `controller` / `pim.py`, US1–US11, line interface, in-process Alarm Alerts, `coverage_report.py` | PR #1 (`ef7e800`) |
-| 2026-09-11 | Unit, integration, and e2e layers; 100 % `model/` coverage; `hooks/pre-commit` gate (ADR-0017) | PR #2 (`7618f78`) |
-| 2026-09-11 – 09-12 | `curses` interface (ADR-0018): panes, selectors, calendar, colour theme, search retry, idle Esc clears the filter | PR #3 (`d99c01b`) |
+| 2026-09-11 | Unit, integration, and e2e layers; 100 % `model/` coverage; `hooks/pre-commit` gate | PR #2 (`7618f78`) |
+| 2026-09-11 – 09-12 | `curses` interface: panes, selectors, calendar, colour theme, search retry, idle Esc clears the filter | PR #3 (`d99c01b`) |
 | 2026-09-23 | Full-marks audit against the brief. Fixed four crash paths (out-of-range alarms, non-list alarms, non-UTF-8 files, uncaught errors), blank and `.pim`-only file names, id and amount checks, OS save errors, type hints, test docstrings. Added the SRS, design document, and PDF build. | PR #3 (`d99c01b`) |
 | 2026-09-24 | `~` expanded in PIM File paths; `o` load and `W` save as keys; absolute path in the save and load status | PR #4 (`de9640a`) |
-| 2026-09-24 | Folder browser for load and save-as paths (ADR-0019) | PR #5 (`7f7597f`) |
-| 2026-09-24 | Folded `docs/adr/` into DESIGN §6 and `docs/plans/` into this file; refreshed the deliverables | this change |
+| 2026-09-24 | Folder browser for load and save-as paths | PR #5 (`7f7597f`) |
+| 2026-09-24 | Folded the ADRs into decision tables in DESIGN §5 and `docs/plans/` into this file; refreshed the deliverables | PR #6 |

@@ -191,7 +191,7 @@ On a TTY, the full-screen interface shall also offer a calendar picker.
 *Verification:* e2e modify scripts.
 
 **FR-13** Modifying a PIR shall never change its Id or its type. An attempt to change the type shall fail with `PIR type cannot be changed`.
-*Rationale: the Id is the only identity (design document, ADR-0006). A different type is a different record, so the user deletes the PIR and creates a new one.*
+*Rationale: the Id is the only identity (design document §5.3). A different type is a different record, so the user deletes the PIR and creates a new one.*
 *Verification:* unit tests `test_type_cannot_change` and `test_failed_modify_type_leaves_pir_unchanged`.
 
 **FR-14** When the `start` of an Event changes, the Effective Alarm Times of its Relative alarms shall move with it, and those of its Absolute alarms shall not.

@@ -1,6 +1,6 @@
 # Product Description and Decisions
 
-Product scope for the COMP3211 command-line Personal Information Management (PIM) system. Domain terms are defined in `CONTEXT.md`. Irreversible choices are recorded as ADR-0001 to ADR-0019 in the design document, `docs/deliverables/DESIGN.md` §6.
+Product scope for the COMP3211 command-line Personal Information Management (PIM) system. Domain terms are defined in `CONTEXT.md`. Irreversible choices and their reasons are recorded in the design document, `docs/deliverables/DESIGN.md` §5.
 
 This document covers interaction and semantics the assignment leaves to the group. It does **not** add product capability beyond Appendix B.
 
@@ -28,7 +28,7 @@ It is not a multi-user system, a network service, a GUI, or a calendar daemon. A
 
 ### Explicitly out (extra features, no extra credit)
 
-- GUI, third-party TUI (Textual / Rich / Click); stdlib `curses` on a TTY is the designed terminal (ADR-0018)
+- GUI, third-party TUI (Textual / Rich / Click); stdlib `curses` on a TTY is the designed terminal (DESIGN §5.1)
 - Any pip dependency; Python standard library only
 - Networking, multi-user, sync
 - Recurring events / Event Series / RRULE
@@ -107,7 +107,7 @@ Rules:
 
 - A Working Collection has at most one Bound File.
 - The extension must be `.pim`. Save appends it if omitted. Load rejects any other extension.
-- The user chooses where the file goes, or which file to open, with a folder browser on the TTY, or by typing its path (always possible, and the only way in the line UI). A typed path may be absolute, start with `~` for the home folder, or be relative to the folder the PIM was started from. After a save or load, the status line names the absolute path. There is no GUI file dialog (ADR-0019).
+- The user chooses where the file goes, or which file to open, with a folder browser on the TTY, or by typing its path (always possible, and the only way in the line UI). A typed path may be absolute, start with `~` for the home folder, or be relative to the folder the PIM was started from. After a save or load, the status line names the absolute path. There is no GUI file dialog (DESIGN §5.4).
 - Bytes are UTF-8 JSON (schema in the architecture document).
 - `save` writes the Bound File without confirmation. `save as` onto an existing path requires confirmation. With no Bound File, `save` is `save as`.
 - `load` replaces the Working Collection and the Bound File. If the collection is dirty, the user must save / discard / cancel; modifications must not be dropped silently. The same rule applies on quit.
@@ -138,26 +138,23 @@ Invalid input: **commands fail atomically** — Working Collection unchanged, no
 
 ## 5. Locked decisions (summary)
 
-The reasons and rejected alternatives for each are in `docs/deliverables/DESIGN.md` §6.
+The reasons and rejected alternatives for each are in `docs/deliverables/DESIGN.md` §5.
 
-| ID | Decision |
-|---|---|
-| ADR-0001 | Python, not Java |
-| ADR-0002 | `model` is a deep OO module: small `PIM` interface + PIR hierarchy + composite Criterion |
-| ADR-0003 | `.pim` contains UTF-8 JSON |
-| ADR-0004 | Standard library only; designed terminal, not a GUI / Textual (curses clause → ADR-0018) |
-| ADR-0005 | Default timezone HKT |
-| ADR-0006 | The only unique identity is the system Id |
-| ADR-0007 | Alarms follow iCal TRIGGER semantics (relative or absolute, several allowed) |
-| ADR-0008 | contains uses Unicode casefold |
-| ADR-0009 | No recurrence |
-| ADR-0010 | View event loop, 500ms tick, redraw on change (TTY: curses timeout; else stdin thread) |
-| ADR-0011 | Top-level packages `model/` `view/` `controller/` + `pim.py` |
-| ADR-0012 | PIR type is immutable after creation |
-| ADR-0013 | Prompted create/modify; criterion line for search |
-| ADR-0014 | A failed command does not change data |
-| ADR-0015 | `.pim` extension is enforced |
-| ADR-0018 | Stdlib curses on a TTY; line UI for scripts and tests |
-| ADR-0019 | Folder browser for load / save-as paths on the TTY; typed paths stay; no GUI dialog |
+- Python, not Java; standard library only; no GUI and no third-party terminal library
+- `model` is a deep OO module: small `PIM` interface + PIR hierarchy + composite Criterion
+- Top-level packages `model/` `view/` `controller/` + `pim.py`
+- View-owned event loop, 500ms tick, redraw on change (TTY: curses timeout; else stdin thread); `now` injected
+- Stdlib `curses` on a TTY; line UI for scripts and tests
+- `.pim` contains UTF-8 JSON; the `.pim` extension is enforced
+- Default timezone HKT
+- The only unique identity is the system Id
+- PIR type is immutable after creation
+- Alarms follow iCal TRIGGER semantics (relative or absolute, several allowed)
+- No recurrence
+- contains uses Unicode casefold
+- A failed command does not change data
+- Prompted create/modify; one criterion line for search; verb commands with single-key accelerators on the TTY
+- Folder browser for load / save-as paths on the TTY; typed paths stay; no GUI dialog
+- `unittest` in three layers; 100% `model/` line coverage; pre-commit gate
 
 Glossary: `CONTEXT.md`. Do not use Name as a title, Label as identity, or Note as a field name.

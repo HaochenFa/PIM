@@ -13,7 +13,7 @@ The assignment brief is [`Project Description.pdf`](Project Description.pdf). Pr
 | [`docs/ACCEPTANCE.md`](docs/ACCEPTANCE.md) | Observable criteria for US1–US11, tests, ZIP contents, demo script |
 | [`CONTEXT.md`](CONTEXT.md) | Domain glossary (PIR, Id, Alarm, Current Result, …) |
 | [`docs/deliverables/SRS.md`](docs/deliverables/SRS.md) | Software requirements specification (course deliverable 1) |
-| [`docs/deliverables/DESIGN.md`](docs/deliverables/DESIGN.md) | Design document (deliverable 2); §6 holds every design decision (ADR-0001–ADR-0019) |
+| [`docs/deliverables/DESIGN.md`](docs/deliverables/DESIGN.md) | Design document (deliverable 2); §5 records the design decisions and their reasons |
 | [`docs/BACKLOG.md`](docs/BACKLOG.md) | Open deliverables, manual checks, known UI gaps, and a log of what landed |
 | [`AGENTS.md`](AGENTS.md) | Rules for AI agents: precedence, scope, architecture, gates |
 

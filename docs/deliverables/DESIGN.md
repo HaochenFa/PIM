@@ -5,7 +5,7 @@ date: "Version 1.1 draft, 24 September 2026"
 ---
 
 <!-- Source-tree note (not rendered): docs/ARCHITECTURE.md is the working
-architecture reference; this document is the submitted design. Section 6 is the
+architecture reference; this document is the submitted design. Section 5 is the
 only record of design decisions. -->
 
 Requirement ids such as FR-16 refer to the Software Requirements Specification (SRS).
@@ -17,8 +17,8 @@ This document describes the design of the command-line PIM system:
 - **Section 2:** the architecture: which pattern was chosen, why, and how it is instantiated.
 - **Section 3:** the main code components: every class with its fields and public methods, and how the classes relate.
 - **Section 4:** one example use, *search for records and then update one*, as a sequence diagram.
-- **Section 5:** a short assessment of modularity, efficiency, extendibility, and justification.
-- **Section 6:** the design decisions behind the system, each with its reason and the alternatives rejected.
+- **Section 5:** the design decisions, each with its reason and the alternatives rejected.
+- **Section 6:** a short assessment of modularity, efficiency, extendibility, and justifiability.
 
 The system is written in Python 3.12 and uses only the standard library. All type names below are Python types. `X | None` means "an X, or nothing"; `list[X]` is a list of X; `dict[K, V]` is a mapping.
 
@@ -271,7 +271,7 @@ It has one public method, `loop() -> None`: the full-screen event loop (`get_wch
 |-------------------|----------------------------------------------------------------------|
 | `view.layout` | Builds the screen model: title, banner, list rows, detail, and menu. |
 | `view.widgets` | `Chooser` (a closed list of answers) and `DateTimePicker` (calendar and time). |
-| `view.file_browser` | `FileBrowser`: folders and `.pim` files for load and save-as paths. Returns a path string, so the prompt handler validates it like a typed path (§6.4, ADR-0019). |
+| `view.file_browser` | `FileBrowser`: folders and `.pim` files for load and save-as paths. Returns a path string, so the prompt handler validates it like a typed path (Section 5.4). |
 | `view.keys` | Maps keys to actions (accelerators), e.g. `w` save, `W` save as, `o` load. |
 | `view.theme` | Colour roles for 256-colour, 8-colour, and monochrome terminals. |
 | `view.textwidth` | East-Asian-width-aware clipping and padding. |
@@ -309,7 +309,53 @@ The diagram shows the main design points of the system:
 - relative alarms follow the start;
 - a failed update is atomic.
 
-# 5. Design quality
+# 5. Design decisions
+
+Each table below records one group of decisions: what was decided, why, and what was rejected. Section 2.1 covers the choice of MVC itself.
+
+## 5.1 Platform and libraries
+
+| Decision | Why | Rejected |
+|------------------------------------------|------------------------------------------|----------------------------|
+| Python 3.12 with the standard library only. | The brief allows Java or Python and grades use of the standard library only. Python is the language the group knows best. | Java: nothing in the brief favours it. Any pip package, for example Textual, Rich, or pytest. |
+| A full-screen `curses` interface on an interactive terminal, and a plain line interface when input or output is redirected (or `PIM_NO_CURSES=1`). | The brief asks for a command-line system and gives no credit for a GUI. `curses` is in the standard library. The line interface lets tests inject `stdin`, `stdout`, and `now`. | A GUI window (tkinter). A third-party terminal library. A line interface only, which would make alarms and selection hard to see. |
+| Every time is time-zone aware. A time typed without an offset is Hong Kong Time (`Asia/Hong_Kong`). Comparisons use instants. | The same PIM File then means the same instants on every machine. HKT has no daylight saving. | The machine's local zone. Requiring an offset on every input. |
+
+## 5.2 Structure
+
+| Decision | Why | Rejected |
+|------------------------------------------|------------------------------------------|----------------------------|
+| Three top-level packages, `model`, `view`, and `controller`, plus `pim.py` as the composition root (Section 2.2). | The brief requires a package named exactly `model`, and the other components must be easy to identify. | A nested `pim.model`, which is not the required name. View and controller code inside `pim.py`. |
+| `model` is one deep module behind a small interface: `PIM`, `parse_criterion`, and the criterion classes. | Validation, matching, and the JSON codec stay inside, so every rule sits in one place and is unit-tested without the screen. | Loose procedural functions. A service class over plain records. A `Storage` interface with a single implementation. |
+| The View owns an in-process event loop with a 500 ms tick. The model never reads the clock: `now` is passed in (Section 2.2). | Alarm Alerts appear while the user is idle, without a second process. Alarm tests control time exactly. | Blocking on `input()`. A background process or operating-system notifications. |
+
+## 5.3 Data and rules
+
+| Decision | Why | Rejected |
+|------------------------------------------|------------------------------------------|----------------------------|
+| A PIM File is UTF-8 JSON (`"format": "pim/v1"`). `save` appends `.pim` if it is missing, and `load` rejects any other extension. | The brief fixes only the `.pim` extension. JSON is in the standard library, readable, and easy to test (SRS FR-31). | `pickle`: opaque, and unsafe to load. YAML: needs a third-party parser. A custom text format: extra parser work. |
+| A system-assigned integer Id is the only identity. It is stored in the file and never reused. | Row numbers change with every search. Descriptions and Contact names repeat, for example a weekly class. | A unique label chosen by the user. Selecting by row position alone. |
+| A PIR's type cannot change. | US6 modifies a PIR's data. The fields of different types do not map onto each other. | Converting a PIR in place. The user deletes it and creates one of the new type. |
+| An Event has zero or more alarms. Each is *Relative* (at the start or a whole number of units before it) or *Absolute* (a fixed instant), as in the iCalendar `TRIGGER`. | Several reminders per event is the standard model. Relative alarms move with the start; absolute ones do not. | Exactly one alarm. Relative alarms after the start, which an absolute alarm already covers. The `.ics` file format. |
+| No recurring events. | Appendix B does not ask for them. A series needs a second life cycle (one occurrence or the whole series) and earns no credit. | Repeat rules (RRULE). A weekly class is several Events. |
+| `contains` is a substring test after `str.casefold()` on both sides. | US7 asks for a substring test. Ignoring case is kinder to the user, and case folding does not depend on the locale. | Fuzzy matching. Locale-dependent comparison. |
+| A failed command changes nothing and shows one English status line. | Invalid input is normal at a command line. The model validates a copy (`modify`) or parses the whole file (`load`) before it replaces anything, so each error requirement is testable (SRS NFR-4). | Partial updates. Printing a traceback or ending the program. |
+
+## 5.4 Interaction
+
+| Decision | Why | Rejected |
+|------------------------------------------|------------------------------------------|----------------------------|
+| Create and modify ask for one field at a time. Search takes one criterion line (grammar in SRS FR-16). | Prompts need no syntax to remember. A criterion must be exact to be testable, especially `&&`, `\|\|`, `!`, and time comparisons. | All fields on one command line. A menu-driven query builder. |
+| Commands are verbs (`create`, `search`, `modify`, `print`, `delete`, `save`, `load`, …). On a terminal, single keys such as `c`, `/`, `w`, `W`, and `o` are shortcuts for the same verbs. | The verbs map one-to-one onto Appendix B, so the SRS, the user manual, and the screen name one list. | Numbered menus. A separate key-only command language. |
+| On a terminal, the load and save-as prompts open a folder browser listing folders and `.pim` files. `/` or Tab switches to a typed path. | Users expect to pick a location, and a bare `path:` field hid how to open a file. The chosen path goes to the same handler as a typed one, so the `.pim` rule, the overwrite question, and unsaved-changes handling stay in one place. | A Finder dialog through `osascript`, or tkinter's file dialog: both are GUI windows. |
+
+## 5.5 Testing
+
+| Decision | Why | Rejected |
+|------------------------------------------|------------------------------------------|----------------------------|
+| `unittest` in three layers: unit, integration, and end-to-end. Model unit tests cover 100 % of `model/` lines. A `hooks/pre-commit` script refuses a commit unless all three layers pass. | The brief grades the model's unit tests. Integration tests and scripted sessions through `Terminal.run()` catch breaks between packages. `coverage_report.py` measures lines with the standard `trace` module, so everything stays in the standard library. | pytest and `coverage.py` (third-party). Testing the model only. |
+
+# 6. Design quality
 
 **Modularity.**
 
@@ -329,62 +375,4 @@ The diagram shows the main design points of the system:
 - *A new PIR type* is a `PIR` subclass with its `FIELDS`, plus its registrations: the type name in `TYPE_NAMES` and `pir_class`, one branch in `pir_from_json`, one `PIM.create_*` method, and one entry in the controller's `_CREATE` table. The View's prompts are generated from `FIELDS`, so the View does not change.
 - *A new front end* can reuse `App` unchanged.
 
-**Justifiability.** Every choice that is hard to reverse, or that a reader might question, is recorded in Section 6 with its reason and the alternatives rejected. Examples are JSON inside the PIM File (ADR-0003), the Id as the only identity (ADR-0006), iCal-style alarms (ADR-0007), the View-owned event loop (ADR-0010), atomic command failure (ADR-0014), and stdlib `curses` for the terminal UI (ADR-0018).
-
-# 6. Design decisions
-
-This section records the decisions behind the design. Each has an id (ADR-0001 to ADR-0019, "architecture decision record") that the SRS and the source tree cite. Each entry gives the current rule, why it was chosen, and the alternatives that were rejected. Where a decision was refined later, only the rule in force is stated, and the entry names the one that refines it.
-
-## 6.1 Language, platform, and libraries
-
-**ADR-0001 — Python, not Java.** The brief allows either. Python was chosen because it is the language the group knows best, and a later switch would have meant rewriting the model, the tests, the manuals, and the diagrams together. Java maps more directly onto the brief's class-diagram and JUnit examples, but that is a documentation convenience, not a requirement. The `model` package, `unittest`, the standard-library rule, and MVC all work as well in Python.
-
-**ADR-0004 — Standard library only, and no GUI.** The brief grades code on using only the standard library and gives no credit for a GUI. So the system has no pip dependency, no GUI window (no tkinter), and no third-party terminal library (Textual, Rich, prompt_toolkit, Click). The quality bar is still a *designed* terminal: visible structure, consistent keys, confirmation before destructive actions, and readable errors. ADR-0018 says how that terminal is drawn.
-
-**ADR-0018 — `curses` on an interactive terminal; a line interface otherwise.** Python's own `curses` module is part of the standard library, so the View uses it when both standard input and output are a terminal. The screen has titled panes, a visible selection, a colour-coded Alarm Alert, selectors for closed answers, and a calendar for dates. Single keys (`c`, `/`, `m`, `w`, `W`, `o`, …) are accelerators for the verb commands of ADR-0016, not a second command language. Colour uses curses colour pairs, with 8-colour and monochrome fallbacks. When input or output is redirected, or `PIM_NO_CURSES=1` is set, the View uses a plain line-by-line interface with the same commands, so tests can inject `stdin` and `stdout`. `curses` is imported only in `view`.
-
-**ADR-0005 — Hong Kong Time is the default time zone.** Every stored time is time-zone aware. A time typed without an offset is taken as IANA `Asia/Hong_Kong`, which has no daylight saving. Using the machine's own zone would make the same PIM File mean different instants on different machines. Requiring an offset on every input would be tiresome for a single user in Hong Kong. Times are saved as ISO 8601 with an explicit offset, so comparisons use instants, not clock faces.
-
-## 6.2 Structure
-
-**ADR-0011 — MVC as three top-level packages.** The brief requires a package named exactly `model` and wants the other components easy to identify. The system therefore has three sibling packages, `model`, `view`, and `controller`, and a thin composition root, `pim.py` (Section 2). A nested name such as `pim.model` would not be the literal package `model`. Folding the View and Controller into `pim.py` would hide them and let the event loop leak into the model. Splitting `model` into many small packages would make its interface wider, not deeper.
-
-**ADR-0002 — `model` is a deep object-oriented module.** Callers (the controller and the tests) see a small interface: `PIM` with `create_*`, `modify`, `delete`, `search`, `save`, `load`, and `due_alarms`, plus the criterion constructors and `parse_criterion`. Behind it are the PIR class hierarchy, the Composite criterion tree, validation, and the JSON codec. The alternatives were a set of procedural functions, or one service class over plain data records. Both would spread the rules across callers. Persistence stays inside the model and is tested with temporary files. A `Storage` interface with a single implementation was rejected as a seam that nothing would use.
-
-**ADR-0010 — The View owns an in-process event loop with a 500 ms tick.** Alarm Alerts must appear while the user is idle, without a second process and without blocking on `input()`. On a terminal, the loop is `curses` `get_wch` with a 500 ms timeout (ADR-0018). Otherwise, a daemon thread reads lines into a queue, and the main loop waits on the queue with a 500 ms timeout. After each key, line, or timeout, the View calls `due_alarms(now)` and redraws only if its screen snapshot has changed. Alarms have minute granularity, so a 500 ms tick is prompt and cheap. The model stays synchronous: `now` is passed in, the model never reads the clock, and only the main thread calls it.
-
-## 6.3 Data and rules
-
-**ADR-0003 — A PIM File holds UTF-8 JSON.** The brief fixes only the `.pim` extension. The standard `json` module makes the file readable, documentable (SRS FR-31), and easy to test. YAML would need a third-party parser. `pickle` is opaque, fragile across versions, and unsafe to load from an untrusted file. A custom text format would be extra parser work for no extra marks.
-
-**ADR-0015 — Save and load require the `.pim` extension.** `save` appends `.pim` when the user omits it. `load` rejects any other extension before reading the file. Saving to the Bound File overwrites it without asking; saving as another existing file asks first. This is the extension the brief names. The content inside is still JSON (ADR-0003).
-
-**ADR-0006 — The system Id is the only identity.** `modify`, `delete`, and `print` need a stable handle. A row number changes whenever the list changes. A unique user label is the wrong idea: many Events can share a description (a weekly class), and many Contacts can share a name. The model therefore assigns an increasing integer Id at creation, stores it in the file, and never reuses it, not even after a delete. Search finds PIRs; it is not a second identity.
-
-**ADR-0012 — A PIR's type cannot change.** US6 asks to modify the *data* of a PIR, not to convert it. Converting a Task into an Event would really be a delete plus a create: the fields do not map onto each other (a deadline is not a start with alarms), and the record would be a different one under the same Id. To get another type, the user deletes the PIR and creates a new one, which gets a new Id.
-
-**ADR-0007 — Alarms follow the iCalendar `TRIGGER` model.** RFC 5545 allows several alarms per event, each either a duration relative to the start or a fixed date-time. The system copies that shape, but not the `.ics` format. An Event has zero or more alarms. A *Relative* alarm is at the start or a whole number of minutes, hours, days, or weeks before it. An *Absolute* alarm is a fixed instant. Search and print use the Effective Alarm Time, and changing the start moves only Relative alarms. Offsets after the start were left out, because an Absolute alarm already covers any instant after the start.
-
-**ADR-0009 — No recurring events.** Appendix B does not mention recurrence. It would add a second life cycle (one occurrence versus the whole series) that is hard to specify completely, and it earns no credit. A weekly class is several Events with the same description, different starts, and different Ids.
-
-**ADR-0008 — `contains` uses Unicode case folding.** US7 asks for a substring test, not a fuzzy match. Ignoring case is kinder to the user. The rule is Python's `str.casefold()` on both the field and the search string, then a plain substring test. It does not depend on the locale, so tests give the same result on every machine. Chinese text is unchanged by case folding and matches as an ordinary substring.
-
-**ADR-0014 — A failed command changes nothing.** Invalid input is normal at a command line. A failed command must not end the process, print a traceback, or apply part of its change. The model builds and validates new state before it replaces the old: `modify` works on a copy, and `load` parses the whole file first. The controller turns every exception into one English status line, and the dirty flag is left as it was. This makes each error requirement verifiable (SRS NFR-4) and gives the user manual one rule to state.
-
-## 6.4 Interaction
-
-**ADR-0013 — Prompts for create and modify; one criterion line for search.** The brief leaves the interaction to the group. Create and modify ask for one field at a time, naming each field. This needs no syntax to remember and suits quick notes and a short demo. Search takes one explicit criterion line, because `&&`, `||`, `!`, and time comparisons must be exact and testable. The screen shows the Bound File, the dirty mark, the Alarm Alert, the Current Result, the Selection, and the status line. A row number selects by position; the Id selects by identity. `print all` prints the Current Result (SRS FR-25).
-
-**ADR-0016 — The command language is verb lines.** The commands are `create`, `search`, `clear`, `modify`, `print`, `print all`, `delete`, `save`, `save as`, `load`, `dismiss`, `help`, and `quit`, plus a row number and `id <n>` to select. This is the smallest set that maps one-to-one onto Appendix B. Follow-up questions (the fields, more alarms, delete and overwrite confirmation, and save / discard / cancel) are prompts, not extra syntax. Numbered menus or single-letter commands would also meet Appendix B; verb lines were chosen so that the user manual, the SRS, and the prompt name one list. The line interface accepts only verbs. On a terminal, the single-key accelerators of ADR-0018 run the same verbs. Renaming a verb would change only the View and the Controller.
-
-**ADR-0019 — A folder browser for load and save-as paths; typed paths stay.** US10 and US11 need only a file path. But users expect to choose a location the way a desktop program lets them, and a bare `path:` field did not show how to open a file at all. A native macOS dialog (Finder via `osascript`, or tkinter's `filedialog`) would be a GUI window, which ADR-0004 rules out. So on a terminal, every load or save-as prompt opens a folder browser drawn with `curses`, like the calendar. It lists `../`, subfolders, and `.pim` files, and in save mode it adds a "new file in this folder" row. `/` or Tab switches to typing a path, so absolute, relative, and `~` paths still work. The chosen path goes to the same handler as a typed answer. The `.pim` rule, the overwrite confirmation, the dirty-file rule, and atomic failure therefore stay in one place. `load <path>` and `save as <path>` with an argument, and the line interface, never open the browser. The browser only lists folders; reading and writing still go through `PIM.load` and `PIM.save`.
-
-## 6.5 Testing
-
-**ADR-0017 — Three test layers and a 100 % model-coverage commit gate.** The brief grades unit tests of the model, so those are the main suite, and they cover every countable line of `model/`. Two further layers guard the seams between the packages:
-
-- **Unit** (`tests/unit`): the model; `App` against a mock `PIM`; and `Terminal` against a fake `App`.
-- **Integration** (`tests/integration`): `App` against a real `PIM`, and `Terminal` against both, on one thread.
-- **End-to-end** (`tests/e2e`): scripted input through `Terminal.run()`, with injected `stdin`, `stdout`, and `now`.
-
-Everything uses `unittest` and the standard library. There is no pytest, no `coverage.py`, and no Python `pre-commit` package: `coverage_report.py` measures lines with the standard `trace` module. A versioned `hooks/pre-commit` script runs the unit tests with the 100 % check, then the integration and end-to-end suites. It refuses the commit if any of them fails. The 100 % target applies to `model/` only, not to `view` or `controller`.
+**Justifiability.** Section 2.1 explains why the system uses MVC, and Section 5 gives the reason and the rejected alternatives for every other choice that is hard to reverse.
