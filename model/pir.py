@@ -6,6 +6,7 @@ and persistence stay in sibling modules.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -78,6 +79,11 @@ def is_blank(value) -> bool:
     return value is None or (isinstance(value, str) and value.strip() == "")
 
 
+def is_positive_int(value) -> bool:
+    """True for an `int` greater than zero (`bool` is not an int here)."""
+    return isinstance(value, int) and not isinstance(value, bool) and value > 0
+
+
 def require_text(value, field: str) -> str:
     """Return a stripped required string. Raises ValidationError if blank."""
     if is_blank(value):
@@ -109,7 +115,7 @@ def parse_datetime(value) -> datetime:
         dt = value
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=HKT)
-        return minute_floor(dt)
+        return require_hkt_range(minute_floor(dt))
     if is_blank(value) or not isinstance(value, str):
         raise ValidationError("datetime is required")
     raw = value.strip()
@@ -126,7 +132,20 @@ def parse_datetime(value) -> datetime:
         raise ValidationError(f"invalid datetime: {raw}") from exc
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=HKT)
-    return minute_floor(dt)
+    return require_hkt_range(minute_floor(dt))
+
+
+def require_hkt_range(dt: datetime) -> datetime:
+    """Return `dt` if it can be shown in Hong Kong Time; else ValidationError.
+
+    An instant such as 9999-12-31T23:59-10:00 parses, but converting it to
+    HKT overflows the datetime range, so the View could not display it.
+    """
+    try:
+        dt.astimezone(HKT)
+    except OverflowError as exc:
+        raise ValidationError("datetime out of range") from exc
+    return dt
 
 
 def parse_optional_datetime(value) -> datetime | None:
@@ -166,14 +185,23 @@ def parse_alarms(specs) -> list[RelativeAlarm | AbsoluteAlarm]:
     return [parse_alarm(item) for item in specs]
 
 
+def _alarm_amount(value) -> int:
+    """Whole-number amount from an int or a decimal-digit string.
+
+    `bool` and `float` are rejected rather than truncated (1.9 is not 1).
+    """
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value
+    if isinstance(value, str) and re.fullmatch(r"\s*-?[0-9]+\s*", value):
+        return int(value)
+    raise ValidationError("relative alarm amount must be an integer")
+
+
 class RelativeAlarm:
     """Alarm at start, or N units before start. Effective time moves when start changes."""
 
     def __init__(self, amount, unit):
-        try:
-            amount = int(amount)
-        except (TypeError, ValueError) as exc:
-            raise ValidationError("relative alarm amount must be an integer") from exc
+        amount = _alarm_amount(amount)
         if amount < 0:
             raise ValidationError("relative alarm cannot be after start")
         if is_blank(unit) or not isinstance(unit, str):
@@ -574,10 +602,10 @@ def pir_from_json(data: dict) -> PIR:
     """Reconstruct a PIR from a pim/v1 object. Raises FileFormatError if invalid."""
     if not isinstance(data, dict):
         raise FileFormatError("PIR must be an object")
-    try:
-        pir_id = int(data["id"])
-    except (KeyError, TypeError, ValueError) as exc:
-        raise FileFormatError("PIR is missing a valid id") from exc
+    pir_id = data.get("id")
+    # Ids are positive integers in the file; 1.7, "3", true, and -3 are not coerced.
+    if not is_positive_int(pir_id):
+        raise FileFormatError("PIR is missing a valid id")
     type_name = str(data.get("type", "")).casefold()
     if type_name == "note":
         return Note(pir_id, data.get("text"))

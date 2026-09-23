@@ -194,6 +194,15 @@ class AppPersistTests(unittest.TestCase):
         self.assertFalse(app.save())
         self.assertIn("save as", app.status)
 
+    def test_save_as_bare_pim_is_a_status_error_not_an_overwrite(self):
+        """`save as .pim`: would_overwrite is False and save fails with `file name is required`."""
+        app = App(PIM())
+        app.create("note", {"text": "x"})
+        self.assertFalse(app.would_overwrite(".pim"))
+        self.assertFalse(app.save(".pim"))
+        self.assertEqual(app.status, "file name is required")
+        self.assertTrue(app.is_dirty())
+
     def test_load_rejects_other_extension_and_corrupt_file(self):
         app = App(make_fixture())
         other = self.dir / "demo.json"

@@ -99,6 +99,17 @@ class AlarmSpecTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             RelativeAlarm(1, "fortnight")
 
+    def test_relative_amount_is_not_truncated_or_coerced_from_bool(self):
+        """1.9, True, and "--1" are rejected; an int or a digit string such as " 3 " is accepted."""
+        for bad in (1.9, True, "--1", "1.5", None):
+            with self.assertRaises(ValidationError):
+                RelativeAlarm(bad, "day")
+        self.assertEqual(RelativeAlarm(" 3 ", "day").amount, 3)
+        self.assertEqual(RelativeAlarm(2, "hours").amount, 2)
+        with self.assertRaises(ValidationError) as ctx:
+            RelativeAlarm("-1", "day")
+        self.assertEqual(ctx.exception.status_message(), "relative alarm cannot be after start")
+
     def test_kind_label_for_at_start_and_plural_units(self):
         self.assertEqual(RelativeAlarm(0, "minute").kind_label(), "relative at start")
         self.assertIn("days", RelativeAlarm(2, "day").kind_label())

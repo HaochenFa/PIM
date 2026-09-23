@@ -71,6 +71,15 @@ class ParseDatetimeTests(unittest.TestCase):
         dt = parse_datetime("2026-09-13T09:00:00+08:00")
         self.assertEqual(format_datetime(dt), "2026-09-13T09:00:00+08:00")
 
+    def test_instant_that_overflows_hong_kong_time_is_rejected(self):
+        """9999-12-31T23:59-10:00 is past year 9999 in HKT; parse raises ValidationError."""
+        with self.assertRaises(ValidationError) as ctx:
+            parse_datetime("9999-12-31T23:59-10:00")
+        self.assertEqual(ctx.exception.status_message(), "datetime out of range")
+        with self.assertRaises(ValidationError):
+            parse_datetime("0001-01-01T00:00+14:00")
+        self.assertEqual(parse_datetime("9999-12-31T23:59").year, 9999)
+
 
 class FieldHelperTests(unittest.TestCase):
     def test_require_text_strips_and_rejects_non_string(self):

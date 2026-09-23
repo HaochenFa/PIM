@@ -63,12 +63,21 @@ class App:
         return self.pim.is_dirty()
 
     def save_target(self, path) -> str:
-        """Path that save would write, with `.pim` appended if omitted."""
+        """Path that save would write, with `.pim` appended if omitted.
+
+        Raises ValidationError if the path has no file name (blank or `.pim`).
+        """
         return str(append_pim_extension(path))
 
     def would_overwrite(self, path) -> bool:
-        """True if `save as` would replace a file that is not the Bound File."""
-        target = Path(self.save_target(path))
+        """True if `save as` would replace a file that is not the Bound File.
+
+        An invalid path is not an overwrite; `save` then reports why it failed.
+        """
+        try:
+            target = Path(self.save_target(path))
+        except PIMError:
+            return False
         bound = self.pim.bound_path()
         if not target.exists():
             return False

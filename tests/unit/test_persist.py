@@ -6,7 +6,14 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from model import DirtyLoadError, ExtensionError, FileFormatError, PIM, parse_datetime
+from model import (
+    DirtyLoadError,
+    ExtensionError,
+    FileFormatError,
+    PIM,
+    ValidationError,
+    parse_datetime,
+)
 from model.pimfile import read_pim_file, write_pim_file
 from tests.fixture import make_fixture
 
@@ -211,6 +218,39 @@ class PersistTests(unittest.TestCase):
         next_id, pirs = read_pim_file(path)
         self.assertEqual(next_id, 6)
         self.assertEqual(pirs[0].id, 5)
+
+    def test_blank_or_bare_pim_path_is_rejected_without_writing(self):
+        """save("") and save(".pim") raise ValidationError; no `..pim` or `.pim.pim` appears."""
+        pim = PIM()
+        pim.create_note("keep")
+        for bad in ("", "   ", ".pim", str(self.dir / ".PIM")):
+            with self.assertRaises(ValidationError) as ctx:
+                pim.save(bad)
+            self.assertEqual(ctx.exception.status_message(), "file name is required")
+        with self.assertRaises(ValidationError):
+            pim.load(self.dir / ".pim", force=True)
+        self.assertEqual(list(self.dir.iterdir()), [])
+        self.assertTrue(pim.is_dirty())
+        self.assertIsNone(pim.bound_path())
+
+    def test_ids_in_file_must_be_positive_integers(self):
+        """Ids -3, 0, 1.7, "3", and true are FileFormatError, not coerced; memory survives."""
+        pim = make_fixture()
+        for bad_id in (-3, 0, 1.7, "3", True):
+            path = self.dir / "ids.pim"
+            payload = {"format": "pim/v1", "next_id": 9, "pirs": [{"id": bad_id, "type": "note", "text": "x"}]}
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaises(FileFormatError, msg=repr(bad_id)):
+                pim.load(path, force=True)
+        self.assertEqual(len(pim.all()), 6)
+
+    def test_next_id_must_be_an_integer(self):
+        """next_id of 1.5, "5", or true is FileFormatError rather than a silent int()."""
+        for bad in (1.5, "5", True):
+            path = self.dir / "next.pim"
+            path.write_text(json.dumps({"format": "pim/v1", "next_id": bad, "pirs": []}), encoding="utf-8")
+            with self.assertRaises(FileFormatError, msg=repr(bad)):
+                read_pim_file(path)
 
     def test_write_failure_unlinks_temp_and_reraises(self):
         pim = PIM()
