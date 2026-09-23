@@ -22,6 +22,8 @@ PRINT_ALL = "print_all"
 DELETE = "delete"
 DISMISS = "dismiss"
 SAVE = "save"
+SAVE_AS = "save_as"
+LOAD = "load"
 HELP = "help"
 QUIT = "quit"
 COMMAND = "command"
@@ -35,6 +37,8 @@ CHAR_ACTIONS = {
     "x": DELETE,
     "d": DISMISS,
     "w": SAVE,
+    "W": SAVE_AS,
+    "o": LOAD,
     "?": HELP,
     "q": QUIT,
     "j": SELECT_DOWN,

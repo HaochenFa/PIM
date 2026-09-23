@@ -20,12 +20,14 @@ from view.keys import (
     DELETE,
     DISMISS,
     HELP as KEY_HELP,
+    LOAD as KEY_LOAD,
     MODIFY,
     PRINT,
     PRINT_ACTIONS,
     PRINT_ALL,
     QUIT,
     SAVE as KEY_SAVE,
+    SAVE_AS as KEY_SAVE_AS,
     SEARCH,
     SELECT_DOWN,
     SELECT_FIRST,
@@ -55,6 +57,9 @@ DISCARD = {"discard", "d"}
 CANCEL = {"cancel", "c"}
 DIRTY_QUIT = "dirty-quit"
 DIRTY_LOAD = "dirty-load"
+# Say which way the file goes; a bare "path: " reads the same for save and load.
+SAVE_AS_PROMPT = "save as path: "
+LOAD_PROMPT = "load path: "
 
 
 class Terminal:
@@ -234,6 +239,10 @@ class Terminal:
             self._dismiss()
         elif action == KEY_SAVE:
             self._save()
+        elif action == KEY_SAVE_AS:
+            self._handle_command("save as")
+        elif action == KEY_LOAD:
+            self._handle_command("load")
         elif action == KEY_HELP:
             self._status(HELP, STATUS_INFO)
         elif action == QUIT:
@@ -403,13 +412,13 @@ class Terminal:
             if path:
                 self._save_as(path)
             else:
-                self.ask("path: ", lambda value: self._save_as(value.strip()))
+                self.ask(SAVE_AS_PROMPT, lambda value: self._save_as(value.strip()))
         elif lower == "load" or lower.startswith("load "):
             path = raw[4:].strip()
             if path:
                 self._load(path)
             else:
-                self.ask("path: ", lambda value: self._load(value.strip()))
+                self.ask(LOAD_PROMPT, lambda value: self._load(value.strip()))
         elif lower == "create" or lower.startswith("create "):
             type_name = raw[6:].strip().casefold()
             self._start_create(type_name or None)
@@ -460,7 +469,7 @@ class Terminal:
                     if self.app.save():
                         on_save()
                     return
-                self.ask("path: ", lambda path: self._save_as(path.strip(), then=on_save))
+                self.ask(SAVE_AS_PROMPT, lambda path: self._save_as(path.strip(), then=on_save))
                 return
             self._status("enter save, discard, or cancel", STATUS_ERR)
             self._ask_dirty(on_save, on_discard, on_cancel, kind)
@@ -476,7 +485,7 @@ class Terminal:
         if self.app.bound_path():
             self.app.save()
             return
-        self.ask("path: ", lambda path: self._save_as(path.strip()))
+        self.ask(SAVE_AS_PROMPT, lambda path: self._save_as(path.strip()))
 
     def _save_as(self, path: str, then=None):
         if not path:

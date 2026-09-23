@@ -70,6 +70,8 @@ These run immediately when the prompt is empty (nothing typed, no wizard):
 | `x` or `Delete` | Delete the selection (`y`/`n`) |
 | `d` | Dismiss the first listed alarm |
 | `w` | Save (asks for a path if untitled) |
+| `W` | Save as: asks for a path, e.g. `~/Desktop/work` |
+| `o` | Load (open) a `.pim` file: asks for a path. Unsaved changes ask save / discard / cancel first |
 | `:` | Type a full command (same verbs as below) |
 | `?` | Key help overlay |
 | `q` | Quit |
