@@ -19,6 +19,8 @@ from tests.fixture import make_fixture
 
 
 class PersistTests(unittest.TestCase):
+    """US10/US11 save and load of the PIM File: round-trip, extension, dirty load, corrupt input."""
+
     def setUp(self):
         self.tmpdir = tempfile.TemporaryDirectory()
         self.dir = Path(self.tmpdir.name)
@@ -27,6 +29,7 @@ class PersistTests(unittest.TestCase):
         self.tmpdir.cleanup()
 
     def test_save_appends_pim_and_round_trips(self):
+        """US10/US11: save appends `.pim`; load restores all 6 PIRs, fields, and alarms, and is clean."""
         pim = make_fixture()
         pim.save(self.dir / "demo")
         path = self.dir / "demo.pim"
@@ -51,6 +54,7 @@ class PersistTests(unittest.TestCase):
         self.assertEqual(Path(loaded.bound_path()), path)
 
     def test_next_id_survives_delete_then_save_load(self):
+        """After delete, save, and load, the next Id is at least 7; the deleted Id 2 is never reused."""
         pim = make_fixture()
         pim.delete(2)
         pim.save(self.dir / "keep.pim")
@@ -61,6 +65,7 @@ class PersistTests(unittest.TestCase):
         self.assertNotEqual(created.id, 2)
 
     def test_load_rejects_other_extension_without_parsing(self):
+        """Loading a `.json` file raises ExtensionError; the Working Collection stays empty."""
         other = self.dir / "demo.json"
         other.write_text("not json that would fail", encoding="utf-8")
         pim = PIM()
@@ -69,6 +74,7 @@ class PersistTests(unittest.TestCase):
         self.assertEqual(pim.all(), [])
 
     def test_bad_json_does_not_clobber_memory(self):
+        """A corrupt file raises FileFormatError; the Working Collection keeps its 6 PIRs."""
         pim = make_fixture()
         path = self.dir / "bad.pim"
         path.write_text("{not json", encoding="utf-8")
@@ -78,6 +84,7 @@ class PersistTests(unittest.TestCase):
         self.assertEqual(pim.get(1).text, "Shopping: Milk")
 
     def test_unknown_format_does_not_clobber_memory(self):
+        """An unknown `format` (pim/v0) raises FileFormatError; the Working Collection keeps 6 PIRs."""
         pim = make_fixture()
         path = self.dir / "old.pim"
         path.write_text('{"format": "pim/v0", "next_id": 1, "pirs": []}', encoding="utf-8")
@@ -132,6 +139,7 @@ class PersistTests(unittest.TestCase):
         self.assertEqual(len(pim.all()), 6)
 
     def test_load_while_dirty_without_force_fails(self):
+        """Load while dirty raises DirtyLoadError and keeps edits; forced load restores the file, clean."""
         pim = make_fixture()
         path = self.dir / "ok.pim"
         pim.save(path)
@@ -145,6 +153,7 @@ class PersistTests(unittest.TestCase):
         self.assertFalse(pim.is_dirty())
 
     def test_save_clears_dirty(self):
+        """Creating a PIR sets the dirty flag; a successful save clears it."""
         pim = PIM()
         pim.create_note("x")
         self.assertTrue(pim.is_dirty())
@@ -152,11 +161,13 @@ class PersistTests(unittest.TestCase):
         self.assertFalse(pim.is_dirty())
 
     def test_missing_file_is_format_error(self):
+        """Loading a PIM File that does not exist raises FileFormatError."""
         pim = PIM()
         with self.assertRaises(FileFormatError):
             pim.load(self.dir / "missing.pim")
 
     def test_duplicate_id_and_bad_schema(self):
+        """Duplicate Ids, non-int next_id, non-object root, or unknown type raise FileFormatError."""
         pim = PIM()
         pim.create_note("keep")
         dup = self.dir / "dup.pim"
@@ -189,12 +200,14 @@ class PersistTests(unittest.TestCase):
             pim.load(unknown, force=True)
 
     def test_pirs_must_be_a_list(self):
+        """A PIM File whose `pirs` is an object, not a list, raises FileFormatError."""
         path = self.dir / "pirs.pim"
         path.write_text('{"format":"pim/v1","next_id":1,"pirs":{}}', encoding="utf-8")
         with self.assertRaises(FileFormatError):
             read_pim_file(path)
 
     def test_invalid_pir_in_file_is_format_error(self):
+        """A Note with whitespace-only `text` in the file raises FileFormatError."""
         path = self.dir / "blank.pim"
         path.write_text(
             '{"format":"pim/v1","next_id":2,"pirs":[{"id":1,"type":"note","text":"  "}]}',
@@ -204,12 +217,14 @@ class PersistTests(unittest.TestCase):
             read_pim_file(path)
 
     def test_next_id_must_be_positive(self):
+        """A PIM File with `next_id` 0 raises FileFormatError."""
         path = self.dir / "zero.pim"
         path.write_text('{"format":"pim/v1","next_id":0,"pirs":[]}', encoding="utf-8")
         with self.assertRaises(FileFormatError):
             read_pim_file(path)
 
     def test_next_id_is_raised_above_max_id(self):
+        """A stale `next_id` of 1 with a PIR of Id 5 is raised to 6 on read; Id 5 is kept."""
         path = self.dir / "bump.pim"
         path.write_text(
             '{"format":"pim/v1","next_id":1,"pirs":[{"id":5,"type":"note","text":"keep"}]}',
@@ -253,6 +268,7 @@ class PersistTests(unittest.TestCase):
                 read_pim_file(path)
 
     def test_write_failure_unlinks_temp_and_reraises(self):
+        """A failed atomic replace re-raises OSError, even when removing the temp file also fails."""
         pim = PIM()
         pim.create_note("x")
         path = self.dir / "fail.pim"
