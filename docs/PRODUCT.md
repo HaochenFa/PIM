@@ -1,6 +1,6 @@
 # Product Description and Decisions
 
-Product scope for the COMP3211 command-line Personal Information Management (PIM) system. Domain terms are defined in `CONTEXT.md`. Irreversible choices are recorded in `docs/adr/`.
+Product scope for the COMP3211 command-line Personal Information Management (PIM) system. Domain terms are defined in `CONTEXT.md`. Irreversible choices are recorded as ADR-0001 to ADR-0019 in the design document, `docs/deliverables/DESIGN.md` §6.
 
 This document covers interaction and semantics the assignment leaves to the group. It does **not** add product capability beyond Appendix B.
 
@@ -137,6 +137,8 @@ Letter keys and arrows are accelerators for the same verb commands. They do not 
 Invalid input: **commands fail atomically** — Working Collection unchanged, no traceback, process stays up, one specific English error on the status line. Cases: unknown command, missing required field, empty body, bad Id, bad datetime, bad search syntax, not `.pim`, missing path, load while dirty, delete/modify/print-one with no selection, attempt to change type.
 
 ## 5. Locked decisions (summary)
+
+The reasons and rejected alternatives for each are in `docs/deliverables/DESIGN.md` §6.
 
 | ID | Decision |
 |---|---|

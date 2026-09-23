@@ -12,7 +12,9 @@ The assignment brief is [`Project Description.pdf`](Project Description.pdf). Pr
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | MVC, `model` interface, event loop, `.pim` JSON, search-then-update sequence |
 | [`docs/ACCEPTANCE.md`](docs/ACCEPTANCE.md) | Observable criteria for US1–US11, tests, ZIP contents, demo script |
 | [`CONTEXT.md`](CONTEXT.md) | Domain glossary (PIR, Id, Alarm, Current Result, …) |
-| [`docs/adr/`](docs/adr/) | Architecture decision records |
+| [`docs/deliverables/SRS.md`](docs/deliverables/SRS.md) | Software requirements specification (course deliverable 1) |
+| [`docs/deliverables/DESIGN.md`](docs/deliverables/DESIGN.md) | Design document (deliverable 2); §6 holds every design decision (ADR-0001–ADR-0019) |
+| [`docs/BACKLOG.md`](docs/BACKLOG.md) | Open deliverables, manual checks, known UI gaps, and a log of what landed |
 | [`AGENTS.md`](AGENTS.md) | Rules for AI agents: precedence, scope, architecture, gates |
 
 Use the glossary terms as written. Do not treat **Name** as a title, **Label** as identity, or **Note** as a field name.

@@ -1,6 +1,6 @@
 # Technical Architecture
 
-This is the architecture the assignment’s design document must explain: the chosen pattern, the main code parts and how they relate, and the collaboration for “search then update”. Implementation follows this file. Domain meaning follows `docs/PRODUCT.md` and `CONTEXT.md`.
+This is the architecture the assignment’s design document must explain: the chosen pattern, the main code parts and how they relate, and the collaboration for “search then update”. Implementation follows this file. Domain meaning follows `docs/PRODUCT.md` and `CONTEXT.md`. Decision ids such as ADR-0018 refer to `docs/deliverables/DESIGN.md` §6.
 
 ---
 
@@ -244,7 +244,7 @@ Unit tests (the assignment requires tests for the model only):
 - `due_alarms(now)` OVERDUE / SOON boundaries (injected now)
 - dirty flag; a bad file must not clobber memory
 
-The line-coverage report is for `model/` (unit tests only) and lives in the source root. Integration and e2e suites are extra in-repo gates; they are not a substitute for model unit tests. See `docs/adr/0017`.
+The line-coverage report is for `model/` (unit tests only) and lives in the source root. Integration and e2e suites are extra in-repo gates; they are not a substitute for model unit tests. See ADR-0017 (DESIGN §6.5).
 
 ## 8. Mapping to the rubric
 
