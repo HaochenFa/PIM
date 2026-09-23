@@ -210,6 +210,19 @@ class AppSearchSaveTests(unittest.TestCase):
         pim.load.assert_called_once_with("/tmp/x.pim", force=False)
         self.assertTrue(app.status.startswith("Loaded "))
 
+    def test_save_os_error_names_target_not_temp_file(self):
+        """PermissionError from PIM.save sets `cannot save <target>.pim: <reason>`; returns False."""
+        pim = _pim()
+        pim.save.side_effect = PermissionError(1, "Operation not permitted", "/tmp/.pim-abc.tmp")
+        app = App(pim)
+        self.assertFalse(app.save("/tmp/report"))
+        self.assertEqual(app.status, "cannot save /tmp/report.pim: Operation not permitted")
+        self.assertEqual(app.status_kind, STATUS_ERR)
+        self.assertNotIn(".tmp", app.status)
+        pim.save.side_effect = OSError("disk full")
+        self.assertFalse(app.save("/tmp/report.pim"))
+        self.assertEqual(app.status, "cannot save /tmp/report.pim: disk full")
+
     def test_bound_path_and_dirty_and_due_alarms_passthrough(self):
         pim = _pim()
         pim.bound_path.return_value = "/tmp/a.pim"

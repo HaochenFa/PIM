@@ -238,7 +238,11 @@ class App:
         return self.print_text
 
     def save(self, path=None):
-        """Write the Bound File, or `path` for save as. False on domain or OS failure."""
+        """Write the Bound File, or `path` for save as. False on domain or OS failure.
+
+        An OSError (permission denied, disk full) becomes one status line that
+        names the `.pim` target; the collection stays dirty.
+        """
         try:
             if path is None:
                 path = self.pim.bound_path()
@@ -247,6 +251,11 @@ class App:
             self.pim.save(path)
         except PIMError as exc:
             self.set_status(message_for(exc), STATUS_ERR)
+            return False
+        except OSError as exc:
+            # exc.filename may be the hidden temp file; show the user's target instead.
+            reason = exc.strerror or str(exc)
+            self.set_status(f"cannot save {self.save_target(path)}: {reason}", STATUS_ERR)
             return False
         self.set_status(f"Saved {self.pim.bound_path()}", STATUS_OK)
         return True
