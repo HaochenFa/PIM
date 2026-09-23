@@ -1,0 +1,41 @@
+flowchart TB
+    user(["User at a terminal"])
+    file[("PIM File<br/>*.pim (UTF-8 JSON)")]
+
+    subgraph root["pim.py (composition root)"]
+        main["main():<br/>PIM() → App(pim) → Terminal(app) → run()"]
+    end
+
+    subgraph view["view (package)"]
+        term["Terminal<br/>event loop, prompts, Alarm Alert"]
+        curses["CursesUI<br/>full-screen TTY front end"]
+        helpers["layout · widgets · keys<br/>theme · textwidth · stdin_reader"]
+    end
+
+    subgraph controller["controller (package)"]
+        app["App<br/>one user action → model calls<br/>Current Result · Selection · status"]
+        errors["errors.message_for<br/>exception → status line"]
+    end
+
+    subgraph model["model (package)"]
+        pim["PIM<br/>Working Collection"]
+        pir["PIR hierarchy + alarms"]
+        crit["Criterion + parse_criterion"]
+        codec["pimfile<br/>JSON codec"]
+    end
+
+    user -- "keys / lines" --> term
+    term -- "draws screen" --> user
+    term --- curses
+    term --- helpers
+    term -- "commands" --> app
+    term -. "reads PIR / DueAlarm values" .-> pir
+    app --> errors
+    app -- "create · modify · delete · search<br/>save · load · due_alarms" --> pim
+    pim --> pir
+    pim --> crit
+    pim --> codec
+    codec -- "read / atomic write" --> file
+    main -.-> term
+    main -.-> app
+    main -.-> pim

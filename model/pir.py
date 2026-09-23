@@ -6,8 +6,9 @@ and persistence stay in sibling modules.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 HKT = ZoneInfo("Asia/Hong_Kong")
@@ -73,12 +74,17 @@ class ExtensionError(PIMError):
     """The path does not use the .pim extension."""
 
 
-def is_blank(value) -> bool:
+def is_blank(value: object) -> bool:
     """True for None or a whitespace-only string (a missing value)."""
     return value is None or (isinstance(value, str) and value.strip() == "")
 
 
-def require_text(value, field: str) -> str:
+def is_positive_int(value: object) -> bool:
+    """True for an `int` greater than zero (`bool` is not an int here)."""
+    return isinstance(value, int) and not isinstance(value, bool) and value > 0
+
+
+def require_text(value: object, field: str) -> str:
     """Return a stripped required string. Raises ValidationError if blank."""
     if is_blank(value):
         raise ValidationError(f"{field} is required")
@@ -87,7 +93,7 @@ def require_text(value, field: str) -> str:
     return value.strip()
 
 
-def optional_text(value) -> str | None:
+def optional_text(value: object) -> str | None:
     """Strip an optional string; blank becomes None."""
     if is_blank(value):
         return None
@@ -103,13 +109,13 @@ def minute_floor(dt: datetime) -> datetime:
     return dt.replace(second=0, microsecond=0)
 
 
-def parse_datetime(value) -> datetime:
+def parse_datetime(value: datetime | str) -> datetime:
     """Parse a timezone-aware instant; default zone is Hong Kong Time."""
     if isinstance(value, datetime):
         dt = value
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=HKT)
-        return minute_floor(dt)
+        return require_hkt_range(minute_floor(dt))
     if is_blank(value) or not isinstance(value, str):
         raise ValidationError("datetime is required")
     raw = value.strip()
@@ -126,10 +132,28 @@ def parse_datetime(value) -> datetime:
         raise ValidationError(f"invalid datetime: {raw}") from exc
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=HKT)
-    return minute_floor(dt)
+    return require_hkt_range(minute_floor(dt))
 
 
-def parse_optional_datetime(value) -> datetime | None:
+def require_hkt_range(dt: datetime) -> datetime:
+    """Return `dt` if it can be shown in Hong Kong Time; else ValidationError.
+
+    An instant such as 9999-12-31T23:59-10:00 parses, but converting it to
+    HKT or UTC overflows the datetime range, so it could not be displayed
+    or saved and loaded back.
+    """
+    try:
+        # astimezone(HKT) is a no-op when tzinfo is already HKT, so also go
+        # through UTC: a value that cannot be expressed there would save but
+        # not load back (it is stored with a fixed offset).
+        dt.astimezone(timezone.utc)
+        dt.astimezone(HKT)
+    except OverflowError as exc:
+        raise ValidationError("datetime out of range") from exc
+    return dt
+
+
+def parse_optional_datetime(value: datetime | str | None) -> datetime | None:
     """Parse an optional instant; blank or `none` is None."""
     if is_blank(value):
         return None
@@ -143,7 +167,7 @@ def format_datetime(dt: datetime) -> str:
     return minute_floor(dt).isoformat(timespec="seconds")
 
 
-def parse_alarm(spec) -> RelativeAlarm | AbsoluteAlarm:
+def parse_alarm(spec: AlarmSpec) -> RelativeAlarm | AbsoluteAlarm:
     """Build a RelativeAlarm or AbsoluteAlarm from an object or JSON dict."""
     if isinstance(spec, (RelativeAlarm, AbsoluteAlarm)):
         return spec
@@ -157,14 +181,32 @@ def parse_alarm(spec) -> RelativeAlarm | AbsoluteAlarm:
     raise ValidationError("alarm kind must be relative or absolute")
 
 
+def parse_alarms(specs: list[AlarmSpec] | tuple | None) -> list[RelativeAlarm | AbsoluteAlarm]:
+    """Build an alarm list. None means no alarms; any non-list value is a ValidationError."""
+    if specs is None:
+        return []
+    if not isinstance(specs, (list, tuple)):
+        raise ValidationError("alarms must be a list")
+    return [parse_alarm(item) for item in specs]
+
+
+def _alarm_amount(value: object) -> int:
+    """Whole-number amount from an int or a decimal-digit string.
+
+    `bool` and `float` are rejected rather than truncated (1.9 is not 1).
+    """
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value
+    if isinstance(value, str) and re.fullmatch(r"\s*-?[0-9]+\s*", value):
+        return int(value)
+    raise ValidationError("relative alarm amount must be an integer")
+
+
 class RelativeAlarm:
     """Alarm at start, or N units before start. Effective time moves when start changes."""
 
-    def __init__(self, amount, unit):
-        try:
-            amount = int(amount)
-        except (TypeError, ValueError) as exc:
-            raise ValidationError("relative alarm amount must be an integer") from exc
+    def __init__(self, amount: int | str, unit: str):
+        amount = _alarm_amount(amount)
         if amount < 0:
             raise ValidationError("relative alarm cannot be after start")
         if is_blank(unit) or not isinstance(unit, str):
@@ -196,7 +238,7 @@ class RelativeAlarm:
 class AbsoluteAlarm:
     """Alarm at a stored instant. Changing start does not move it."""
 
-    def __init__(self, at):
+    def __init__(self, at: datetime | str):
         self.at = parse_datetime(at)
 
     def effective(self, start: datetime) -> datetime:
@@ -211,6 +253,23 @@ class AbsoluteAlarm:
         """Always `absolute`."""
         return "absolute"
 
+
+def check_alarm_times(start: datetime, alarms: list[RelativeAlarm | AbsoluteAlarm]) -> None:
+    """Raise ValidationError if any Effective Alarm Time falls outside the datetime range.
+
+    A huge relative amount, or a start near year 1, makes `start - duration`
+    overflow; the Event must then be rejected rather than stored.
+    """
+    for alarm in alarms:
+        try:
+            alarm.effective(start)
+        except OverflowError as exc:
+            raise ValidationError("alarm time is out of range") from exc
+
+
+
+# What an alarm list may hold: alarm objects, or pim/v1 JSON dicts on load.
+AlarmSpec = RelativeAlarm | AbsoluteAlarm | dict
 
 class DueAlarm:
     """One OVERDUE or SOON alarm at an injected `now`. `key` is (event Id, alarm index)."""
@@ -268,7 +327,7 @@ class PIR:
         """Deadline or start for the Current Result table, else None."""
         return None
 
-    def modify(self, fields: dict) -> None:
+    def modify(self, fields: dict[str, object]) -> None:
         """Apply updates in place. Raises ValidationError if type would change."""
         if "type" in fields and not is_blank(fields["type"]):
             wanted = str(fields["type"]).strip().casefold()
@@ -276,7 +335,7 @@ class PIR:
                 raise ValidationError("PIR type cannot be changed")
         self._apply(fields)
 
-    def _apply(self, fields: dict) -> None:
+    def _apply(self, fields: dict[str, object]) -> None:
         raise NotImplementedError
 
     def to_json(self) -> dict:
@@ -294,7 +353,7 @@ class Note(PIR):
     type_name = "note"
     FIELDS = (FieldSpec("text", "text", KIND_TEXT, required=True),)
 
-    def __init__(self, pir_id: int, text):
+    def __init__(self, pir_id: int, text: str | None):
         super().__init__(pir_id)
         self.text = require_text(text, "text")
 
@@ -310,7 +369,7 @@ class Note(PIR):
             return self.text
         return None
 
-    def _apply(self, fields: dict) -> None:
+    def _apply(self, fields: dict[str, object]) -> None:
         new_text = self.text
         if "text" in fields:
             new_text = require_text(fields["text"], "text")
@@ -332,7 +391,9 @@ class Task(PIR):
         FieldSpec("deadline", "deadline", KIND_DATETIME, required=False),
     )
 
-    def __init__(self, pir_id: int, description, deadline=None):
+    def __init__(
+        self, pir_id: int, description: str | None, deadline: datetime | str | None = None
+    ):
         super().__init__(pir_id)
         self.description = require_text(description, "description")
         self.deadline = parse_optional_datetime(deadline)
@@ -357,7 +418,7 @@ class Task(PIR):
     def relevant_time(self) -> datetime | None:
         return self.deadline
 
-    def _apply(self, fields: dict) -> None:
+    def _apply(self, fields: dict[str, object]) -> None:
         new_description = self.description
         new_deadline = self.deadline
         if "description" in fields:
@@ -395,11 +456,19 @@ class Event(PIR):
         FieldSpec("alarms", "alarms", KIND_ALARMS, required=False),
     )
 
-    def __init__(self, pir_id: int, description, start, alarms=None):
+    def __init__(
+        self,
+        pir_id: int,
+        description: str | None,
+        start: datetime | str | None,
+        alarms: list[AlarmSpec] | None = None,
+    ):
         super().__init__(pir_id)
         self.description = require_text(description, "description")
         self.start = parse_datetime(start)
-        self.alarms = [parse_alarm(item) for item in (alarms or [])]
+        self.alarms = parse_alarms(alarms)
+        # Reject at entry so due_alarms, print, and search never meet an overflow.
+        check_alarm_times(self.start, self.alarms)
 
     @property
     def display_name(self) -> str:
@@ -427,7 +496,7 @@ class Event(PIR):
         """Effective Alarm Times of every alarm, relative ones using current start."""
         return [alarm.effective(self.start) for alarm in self.alarms]
 
-    def _apply(self, fields: dict) -> None:
+    def _apply(self, fields: dict[str, object]) -> None:
         new_description = self.description
         new_start = self.start
         new_alarms = list(self.alarms)
@@ -436,10 +505,9 @@ class Event(PIR):
         if "start" in fields:
             new_start = parse_datetime(fields["start"])
         if "alarms" in fields:
-            if fields["alarms"] is None:
-                new_alarms = []
-            else:
-                new_alarms = [parse_alarm(item) for item in fields["alarms"]]
+            new_alarms = parse_alarms(fields["alarms"])
+        # Validate against the new start before any attribute changes (atomic modify).
+        check_alarm_times(new_start, new_alarms)
         self.description = new_description
         self.start = new_start
         self.alarms = new_alarms
@@ -479,7 +547,9 @@ class Contact(PIR):
         FieldSpec("mobile", "mobile", KIND_TEXT, required=False),
     )
 
-    def __init__(self, pir_id: int, name, address=None, mobile=None):
+    def __init__(
+        self, pir_id: int, name: str | None, address: str | None = None, mobile: str | None = None
+    ):
         super().__init__(pir_id)
         self.name = require_text(name, "name")
         self.address = optional_text(address)
@@ -501,7 +571,7 @@ class Contact(PIR):
             return self.mobile
         return None
 
-    def _apply(self, fields: dict) -> None:
+    def _apply(self, fields: dict[str, object]) -> None:
         new_name = self.name
         new_address = self.address
         new_mobile = self.mobile
@@ -538,7 +608,7 @@ class Contact(PIR):
         ]
 
 
-def pir_class(type_name: str):
+def pir_class(type_name: str) -> type[PIR] | None:
     """PIR subclass for `type_name`, or None if unknown."""
     name = type_name.casefold()
     for cls in (Note, Task, Event, Contact):
@@ -547,14 +617,14 @@ def pir_class(type_name: str):
     return None
 
 
-def pir_from_json(data: dict) -> PIR:
+def pir_from_json(data: dict[str, object]) -> PIR:
     """Reconstruct a PIR from a pim/v1 object. Raises FileFormatError if invalid."""
     if not isinstance(data, dict):
         raise FileFormatError("PIR must be an object")
-    try:
-        pir_id = int(data["id"])
-    except (KeyError, TypeError, ValueError) as exc:
-        raise FileFormatError("PIR is missing a valid id") from exc
+    pir_id = data.get("id")
+    # Ids are positive integers in the file; 1.7, "3", true, and -3 are not coerced.
+    if not is_positive_int(pir_id):
+        raise FileFormatError("PIR is missing a valid id")
     type_name = str(data.get("type", "")).casefold()
     if type_name == "note":
         return Note(pir_id, data.get("text"))

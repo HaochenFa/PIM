@@ -38,7 +38,7 @@ Implement exactly Appendix B (US1–US11) plus the HCI already decided: prompted
 
 **Out of scope** (do not implement, suggest, or leave stubs for):
 
-- GUI, curses, Textual, Rich, prompt_toolkit, Click, colour libraries
+- GUI, Textual, Rich, prompt_toolkit, Click, colour libraries (stdlib `curses` on a TTY is the designed View; ADR-0018)
 - any pip / third-party dependency
 - networking, multi-user, sync, daemon process, OS notifications (`osascript`, etc.)
 - recurring events / Series / RRULE
@@ -57,7 +57,7 @@ If a user or another agent asks for an out-of-scope feature, refuse it against t
 | Fields, search grammar, interaction | `docs/PRODUCT.md` |
 | Packages, `PIM` interface, JSON schema, event loop | `docs/ARCHITECTURE.md` |
 | Observable tests, fixture, ZIP, demo script | `docs/ACCEPTANCE.md` |
-| Why a choice was made | `docs/adr/0001`–`0016` |
+| Why a choice was made | `docs/adr/0001`–`0018` |
 
 Use glossary terms as written. Forbidden substitutions:
 
@@ -71,11 +71,11 @@ Use glossary terms as written. Forbidden substitutions:
 - Pattern: **MVC**. Composition root is `pim.py`: `PIM()` → `App(pim)` → `Terminal(app)` → `run()`.
 - Top-level packages named `model`, `view`, `controller`. Not `pim.model`.
 - `model` is a **deep module**. Callers and tests use `PIM` plus Criterion constructors. Matching, JSON codec, and validation stay inside `model`.
-- `model` must not import `view` or `controller`. No threads, stdin, or ANSI in `model`.
+- `model` must not import `view` or `controller`. No threads, stdin, ANSI, or curses in `model`.
 - `parse_criterion` lives in `model` so US7 is unit-testable without the View.
 - Persistence is JSON in a `.pim` file via `PIM.save` / `PIM.load`. Tests use a temp file. Do not add a one-implementation `Storage` port.
 - `due_alarms(now)` is a pure query; **inject `now`**. `model` must not read the wall clock.
-- View owns the event loop: daemon stdin-reader thread + main loop `Queue.get(timeout=0.5)`. Only the main thread calls `model`. Redraw on change, not every tick.
+- View owns the event loop. TTY: stdlib `curses` `get_wch` + `timeout(500)`. Non-TTY / tests: daemon stdin-reader thread + `Queue.get(timeout=0.5)`. Only the main thread calls `model`. Redraw on change, not every tick.
 - Dismissed alerts are View memory, not part of the PIM File.
 
 ## Implementation guardrails

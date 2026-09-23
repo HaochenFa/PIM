@@ -1,8 +1,14 @@
 Line coverage for model/ (stdlib trace, tests/unit)
 
-criterion.py: 247/247 lines (100.0%)
-pim.py: 89/89 lines (100.0%)
-pimfile.py: 75/75 lines (100.0%)
-pir.py: 349/349 lines (100.0%)
+Method: the standard-library `trace` module runs every test in tests/unit
+and records which lines of model/ executed. A line is countable when an AST
+statement starts on it; docstrings, comments, blank lines, and continuation
+lines of a multi-line statement are not counted. model/__init__.py holds
+re-exports only and is excluded. Third-party coverage.py is not used.
 
-TOTAL model/: 760/760 lines (100.0%)
+criterion.py: 247/247 lines (100.0%)
+pim.py: 91/91 lines (100.0%)
+pimfile.py: 81/81 lines (100.0%)
+pir.py: 374/374 lines (100.0%)
+
+TOTAL model/: 793/793 lines (100.0%)

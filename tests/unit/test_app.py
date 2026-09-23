@@ -5,7 +5,7 @@ from __future__ import annotations
 import unittest
 from unittest.mock import Mock
 
-from controller.app import HELP, App, format_pir
+from controller.app import HELP, STATUS_ERR, STATUS_INFO, STATUS_OK, App, format_pir
 from model import NotFound, Note, Task, ValidationError
 
 
@@ -33,6 +33,7 @@ class AppCreateTests(unittest.TestCase):
         app = App(pim)
         self.assertIsNone(app.create("series", {"text": "x"}))
         self.assertEqual(app.status, "unknown PIR type: series")
+        self.assertEqual(app.status_kind, STATUS_ERR)
         pim.create_note.assert_not_called()
 
     def test_create_note_selects_and_lists(self):
@@ -145,10 +146,54 @@ class AppSearchSaveTests(unittest.TestCase):
         pim = _pim()
         pim.search.return_value = []
         app = App(pim)
-        app.search("type = note")
+        self.assertTrue(app.search("type = note"))
         self.assertEqual(app.current_result(), [])
         self.assertEqual(app.status, "0 match(es)")
+        self.assertEqual(app.status_kind, STATUS_OK)
         self.assertTrue(app.has_criterion())
+        self.assertEqual(app.criterion_line(), "type = note")
+        self.assertIsNone(app.selected_id())
+
+    def test_search_selects_first_hit_and_keeps_source_line(self):
+        note = Note(1, "ok")
+        task = Task(2, "Inbox")
+        pim = _pim([note, task])
+        pim.search.return_value = [task]
+        pim.get.return_value = task
+        app = App(pim)
+        self.assertTrue(app.search("type = task"))
+        self.assertEqual(app.selected_id(), 2)
+        self.assertEqual(app.criterion_line(), "type = task")
+        self.assertEqual(app.status_kind, STATUS_OK)
+
+    def test_search_syntax_error_returns_false_and_keeps_list(self):
+        note = Note(1, "ok")
+        pim = _pim([note])
+        pim.get.return_value = note
+        app = App(pim)
+        app.select_row(1)
+        self.assertFalse(app.search("type ="))
+        self.assertEqual(app.current_result(), [note])
+        self.assertEqual(app.selected_id(), 1)
+        self.assertIsNone(app.criterion_line())
+        self.assertEqual(app.status_kind, STATUS_ERR)
+        self.assertIn("search syntax error", app.status)
+        pim.search.assert_not_called()
+
+    def test_set_status_rejects_unknown_kind(self):
+        app = App(_pim())
+        app.set_status("hello", "loud")
+        self.assertEqual(app.status, "hello")
+        self.assertEqual(app.status_kind, STATUS_INFO)
+
+    def test_clear_search_drops_criterion_line(self):
+        pim = _pim()
+        pim.search.return_value = []
+        app = App(pim)
+        app.search("type = note")
+        app.clear_search()
+        self.assertIsNone(app.criterion_line())
+        self.assertEqual(app.status_kind, STATUS_INFO)
 
     def test_help_constant_lists_verbs(self):
         self.assertIn("create", HELP)
@@ -164,6 +209,19 @@ class AppSearchSaveTests(unittest.TestCase):
         self.assertTrue(app.load("/tmp/x.pim"))
         pim.load.assert_called_once_with("/tmp/x.pim", force=False)
         self.assertTrue(app.status.startswith("Loaded "))
+
+    def test_save_os_error_names_target_not_temp_file(self):
+        """PermissionError from PIM.save sets `cannot save <target>.pim: <reason>`; returns False."""
+        pim = _pim()
+        pim.save.side_effect = PermissionError(1, "Operation not permitted", "/tmp/.pim-abc.tmp")
+        app = App(pim)
+        self.assertFalse(app.save("/tmp/report"))
+        self.assertEqual(app.status, "cannot save /tmp/report.pim: Operation not permitted")
+        self.assertEqual(app.status_kind, STATUS_ERR)
+        self.assertNotIn(".tmp", app.status)
+        pim.save.side_effect = OSError("disk full")
+        self.assertFalse(app.save("/tmp/report.pim"))
+        self.assertEqual(app.status, "cannot save /tmp/report.pim: disk full")
 
     def test_bound_path_and_dirty_and_due_alarms_passthrough(self):
         pim = _pim()

@@ -1,0 +1,45 @@
+sequenceDiagram
+    autonumber
+    actor User
+    participant T as view.Terminal
+    participant A as controller.App
+    participant P as model.PIM
+    participant C as model.criterion
+    participant E as model.Event (copy)
+
+    User->>T: search type = event && description contains "COMP"
+    T->>A: search(line)
+    A->>C: parse_criterion(line)
+    C-->>A: And(TypeIs("event"), Contains("description", "comp"))
+    A->>P: search(criterion)
+    loop every PIR in Id order
+        P->>C: criterion.matches(pir)
+        C-->>P: True / False
+    end
+    P-->>A: [Event 4]
+    A->>A: Current Result = [Event 4], select Id 4, status "1 match(es)"
+    T-->>User: list shows the hit, detail shows Event 4
+
+    User->>T: modify
+    T->>A: selected()
+    A-->>T: Event 4
+    T-->>User: prompt each field (empty keeps)
+    User->>T: start = 2026-09-21 18:30
+    T->>A: modify({start: "2026-09-21 18:30"})
+    A->>P: modify(4, fields)
+    P->>E: copy.copy(Event 4)
+    P->>E: modify(fields)
+    E->>E: parse start, check alarm times
+    alt valid
+        E-->>P: ok
+        P->>P: replace Id 4 with the copy, dirty = true
+        P-->>A: updated Event 4
+        A->>P: search(criterion) again (refresh Current Result)
+        A-->>T: status "Modified Id 4"
+        T-->>User: new start and moved relative alarm times
+    else ValidationError
+        E-->>P: raise ValidationError
+        P-->>A: raise (original Event 4 untouched)
+        A-->>T: status = error message
+        T-->>User: error on the status line, data unchanged
+    end

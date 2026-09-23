@@ -90,7 +90,8 @@ class AppSearchPrintSelectTests(unittest.TestCase):
         app.search("type = contact && name contains \"ada\"")
         self.assertEqual(ids_of(app), [5, 6])
         self.assertTrue(app.has_criterion())
-        self.assertIsNone(app.selected_id())
+        self.assertEqual(app.selected_id(), 5)
+        self.assertEqual(app.criterion_line(), "type = contact && name contains \"ada\"")
         self.assertEqual(app.status, "2 match(es)")
         app.clear_search()
         self.assertEqual(ids_of(app), [1, 2, 3, 4, 5, 6])
@@ -151,7 +152,7 @@ class AppSearchPrintSelectTests(unittest.TestCase):
         app = App(make_fixture())
         app.select_id(1)
         app.search("type = task")
-        self.assertIsNone(app.selected_id())
+        self.assertEqual(app.selected_id(), 2)
         app.search('text contains "Milk"')
         app.select_id(1)
         self.assertEqual(app.selected_id(), 1)
@@ -192,6 +193,15 @@ class AppPersistTests(unittest.TestCase):
         app.create("note", {"text": "x"})
         self.assertFalse(app.save())
         self.assertIn("save as", app.status)
+
+    def test_save_as_bare_pim_is_a_status_error_not_an_overwrite(self):
+        """`save as .pim`: would_overwrite is False and save fails with `file name is required`."""
+        app = App(PIM())
+        app.create("note", {"text": "x"})
+        self.assertFalse(app.would_overwrite(".pim"))
+        self.assertFalse(app.save(".pim"))
+        self.assertEqual(app.status, "file name is required")
+        self.assertTrue(app.is_dirty())
 
     def test_load_rejects_other_extension_and_corrupt_file(self):
         app = App(make_fixture())

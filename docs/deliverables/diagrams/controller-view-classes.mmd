@@ -1,0 +1,48 @@
+classDiagram
+    direction LR
+    class Terminal {
+        +App app
+        +stdin
+        +stdout
+        +Queue queue
+        +set dismissed
+        +run() None
+        +render() None
+        +visible_due() list~DueAlarm~
+        +ask(prompt, handler, kind, chooser, picker) None
+        +apply_accelerator(action) None
+    }
+    class CursesUI {
+        +Terminal term
+        +stdscr
+        +loop() None
+    }
+    class App {
+        +PIM pim
+        +str status
+        +str status_kind
+        +str print_text
+        -Criterion _criterion
+        -list~PIR~ _result
+        -int _selected_id
+        +create(type_name, fields) PIR
+        +modify(fields) PIR
+        +delete_selected() bool
+        +search(line) bool
+        +clear_search() None
+        +select_row(number) None
+        +select_id(pir_id) None
+        +print_selected() str
+        +print_all() str
+        +save(path) bool
+        +load(path, force) bool
+        +due_alarms(now) list~DueAlarm~
+        +current_result() list~PIR~
+        +selected() PIR
+    }
+    class PIM {
+        <<model>>
+    }
+    Terminal --> App : calls
+    CursesUI --> Terminal : drives on a TTY
+    App --> PIM : calls

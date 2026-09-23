@@ -146,6 +146,28 @@ class WizardErrorTests(unittest.TestCase):
         self.assertIn("enter relative or absolute", out)
         self.assertEqual(len(app.pim.get(1).alarms), 1)
 
+    def test_overflowing_relative_alarm_fails_create_and_session_continues(self):
+        """A1 repro: 999999999 weeks before start is a status-line error, not a crash."""
+        app, term, out = run_script(
+            [
+                "create event",
+                "overflow",
+                "2026-09-14T18:30:00+08:00",
+                "y",
+                "relative",
+                "999999999",
+                "week",
+                "n",
+                "create note",
+                "still alive",
+                "quit",
+                "discard",
+            ]
+        )
+        self.assertIn("alarm time is out of range", out)
+        self.assertEqual([pir.type_name for pir in app.pim.all()], ["note"])
+        self.assertFalse(term._running)
+
     def test_replace_alarms_yes_replaces_list(self):
         app, _term, _out = run_script(
             [
@@ -207,16 +229,30 @@ class EventLoopErrorTests(unittest.TestCase):
         )
         self.assertIn("disk full", out)
 
-    def test_run_script_reraises_event_loop_crash(self):
+    def test_unexpected_command_error_is_status_not_crash(self):
+        """A RuntimeError inside a command shows `command failed`; the session continues."""
+
         class BoomSearch(App):
             def search(self, line):
                 raise RuntimeError("boom")
 
+        _app, term, out = run_script(
+            ["search type = note", "help", "quit"],
+            app=BoomSearch(PIM()),
+        )
+        self.assertIn("command failed", out)
+        self.assertIn(HELP, out)
+        self.assertFalse(term._running)
+
+    def test_run_script_reraises_event_loop_crash(self):
+        """The harness surfaces a crash outside command handling (here: painting alarms)."""
+
+        class BoomDue(App):
+            def due_alarms(self, now):
+                raise RuntimeError("boom")
+
         with self.assertRaises(RuntimeError):
-            run_script(
-                ["search type = note", "quit"],
-                app=BoomSearch(PIM()),
-            )
+            run_script(["quit"], app=BoomDue(PIM()))
 
 
 if __name__ == "__main__":
