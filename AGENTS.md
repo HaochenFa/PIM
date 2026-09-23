@@ -2,22 +2,31 @@
 
 Durable instruction set for AI agents working in this repository.
 
-This is not a quick-start and not an implementation snapshot. User-facing overview is `README.md`. Product, architecture, and acceptance are locked in `docs/`. If this file and those documents diverge, fix this file — do not silently “improve” the product.
+This is not a quick-start and not an implementation snapshot. User-facing overview is `README.md`. Requirements are locked in the SRS and the design in the design document (`docs/deliverables/`). If this file and those documents diverge, fix this file — do not silently “improve” the product.
 
 ## Precedence
 
 If anything conflicts, follow this order:
 
 1. `Project Description.pdf` (the COMP3211 brief; cannot be waived)
-2. `docs/PRODUCT.md`
-3. `docs/ARCHITECTURE.md`
-4. `docs/ACCEPTANCE.md`
-5. `CONTEXT.md`
-6. `docs/deliverables/DESIGN.md` §5 (design decisions)
-7. `AGENTS.md`
-8. `README.md`
+2. `docs/deliverables/SRS.md` (requirements and glossary)
+3. `docs/deliverables/DESIGN.md` (architecture, classes, file format; §5 design decisions)
+4. `AGENTS.md`
+5. `README.md`
 
 Do not reopen locked decisions. Do not add decisions that contradict accepted ones. If a genuine conflict with the brief appears, stop and tell the user; do not patch around it.
+
+## Commands (macOS, from the repository root)
+
+```bash
+python3 pim.py                                      # curses UI on a TTY
+PIM_NO_CURSES=1 python3 pim.py                      # line UI (what tests drive)
+python3 -m unittest                                 # all three layers
+python3 -m unittest discover -s tests/unit -t .     # or tests/integration, tests/e2e
+python3 coverage_report.py                          # writes coverage.txt; must be 100% of model/
+git config core.hooksPath hooks                     # once per clone: enable the gate
+sh docs/deliverables/build.sh                       # graded PDFs -> dist/ (needs pandoc, xelatex, mmdc)
+```
 
 ## Project intent
 
@@ -53,14 +62,15 @@ If a user or another agent asks for an out-of-scope feature, refuse it against t
 
 | Topic | Read |
 |---|---|
-| Domain words | `CONTEXT.md` |
-| Fields, search grammar, interaction | `docs/PRODUCT.md` |
-| Packages, `PIM` interface, JSON schema, event loop | `docs/ARCHITECTURE.md` |
-| Observable tests, fixture, ZIP, demo script | `docs/ACCEPTANCE.md` |
-| Why a choice was made | `docs/deliverables/DESIGN.md` §5 |
-| Open work and known UI gaps | `docs/BACKLOG.md` |
+| Domain words | SRS §3 Glossary |
+| Scope, fields, search grammar, interaction, error rules | SRS §2 and §6 (FR-1 – FR-43, NFR-1 – NFR-10) |
+| Packages, `PIM` interface, PIM File JSON, event loop | DESIGN §2–§3 |
+| Why a choice was made | DESIGN §5 |
+| Which requirement each test covers | `REQUIREMENTS.md`, and the *Verification* lines in the SRS |
+| Test fixture | `tests/fixture.py` |
+| Open work, demo script, ZIP layout, known UI gaps | `docs/BACKLOG.md` |
 
-Use glossary terms as written. Forbidden substitutions:
+Use the SRS glossary terms as written. Forbidden substitutions:
 
 - **Name** is the Contact person name only — not a title on other types
 - **Label** is not a concept in this product
@@ -105,8 +115,8 @@ Use glossary terms as written. Forbidden substitutions:
   - **E2E** (`tests/e2e`): scripted stdin through `Terminal.run()` with injected `stdin` / `stdout` / `now`.
 - Each test must state the behaviour it exercises (name or comment) and assert expected results.
 - Cover: four types create/validate/modify/delete; Id stability; contains / unqualified contains / missing-field time / and-or-not / multi-alarm; save/load round-trip; `due_alarms` with injected `now`; dirty flag; corrupt file does not clobber memory.
-- Prefer the fixture in `docs/ACCEPTANCE.md` section 4.
-- Line-coverage report for `model/` belongs at the source root (`python coverage_report.py`).
+- Prefer the shared fixture in `tests/fixture.py`.
+- Line-coverage report for `model/` belongs at the source root (`python3 coverage_report.py`).
 - Pre-commit (`hooks/pre-commit`): unit tests at 100% `model/` coverage, then integration, then e2e, or the commit is refused. `git config core.hooksPath hooks`. Bypass: `git commit --no-verify`.
 
 ## Agent working rules
@@ -115,10 +125,15 @@ Use glossary terms as written. Forbidden substitutions:
 - Do not start coding a new PIR type, a fifth package, or a TUI framework to make the UI “nicer”.
 - When implementing, keep `model` the test surface: if a rule cannot be tested through `PIM` / Criterion, it is in the wrong package.
 - If you must choose a detail not in the docs (e.g. exact menu keystrokes), pick the smallest option that still satisfies acceptance, and record it as a row in the matching table of `docs/deliverables/DESIGN.md` §5 (decision, why, rejected) only if it is hard to reverse, surprising, and a real trade-off.
-- Do not update `CONTEXT.md` with implementation types, file paths, or Python names. Glossary is domain only.
-- Do not rewrite `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/ACCEPTANCE.md`, or the accepted decisions in DESIGN §5 unless the user explicitly changes a product decision.
+- Keep the SRS glossary domain-only: no implementation types, file paths, or Python names.
+- Do not change a requirement in the SRS or a decision in DESIGN §5 unless the user explicitly changes a product decision. Do keep both documents true to the code: when behaviour, a class, or a public method changes, update the SRS, DESIGN §3, `REQUIREMENTS.md`, and the manuals in the same change.
+- Do not add separate product, architecture, acceptance, or glossary files; the SRS and the design document are the only specifications.
 - Do not add dated plan files or separate decision records (ADRs). Open work, manual checks, and known gaps go in `docs/BACKLOG.md`; move an item to its Done table when it lands.
 - Honour Declaration: GenAI use is allowed if acknowledged. Do not invent a false “no GenAI” claim. Contribution splits are the group’s, not the agent’s.
+- The SRS, DESIGN, manuals, and `REQUIREMENTS.md` are graded as PDFs. Keep repo-only notes in `<!-- -->` comments (pandoc drops them), and never cite files a grader won't have. After changing a table, rebuild and look at `dist/*.pdf`: the dash counts in a pipe table's separator row set the column widths.
+- `hooks/pre-commit` rewrites `coverage.txt`. If it changes, commit it with the change that caused it.
+- To stage a file already removed with `git rm`, use `git add -A -- <paths>`. A plain `git add` of that path fails and aborts an `&&` chain.
+- To try the curses UI by hand, run it under tmux with `HOME` set to a temporary folder, so the folder browser and `~` paths don't touch your real home folder.
 
 ## Commit messages
 
@@ -167,7 +182,7 @@ Do this even when the user said “implement/fix/refactor all of this” in one 
 
 Do **not** split a single atomic behaviour across commits (e.g. a `model` change that would fail tests until the matching `tests/` file lands — those stay together). Do not invent tiny commits for whitespace or import reorder.
 
-Order dependent commits so each leaves `python -m unittest` green.
+Order dependent commits so each leaves `python3 -m unittest` green.
 
 ### Pull request summary
 
@@ -179,7 +194,7 @@ Required sections, in this order:
 
 1. **Summary** — what shipped and why (user stories, design decisions, or the defect). Two to five sentences. Name the user-visible behaviour.
 2. **What changed** — bullets by layer (`model`, `view`/`controller`, tests, docs). Call out behaviour a reviewer must not miss (atomic failure, dirty load/quit, Current Result vs `print all`, injected `now`).
-3. **How to check** — exact commands (`python -m unittest`, `python pim.py`, demo steps from `docs/ACCEPTANCE.md` §6). State the platform if it matters (macOS).
+3. **How to check** — exact commands (`python3 -m unittest`, `python3 pim.py`, demo steps from the demo script in `docs/BACKLOG.md`). State the platform if it matters (macOS).
 4. **Out of scope** — explicit: extra features not in Appendix B, and course artefacts this PR does not claim (SRS, videos, Honour Declaration) when that applies.
 
 Optional when useful: **Risks / follow-ups** (known gaps, coverage holes, UI edges). **Commits** as a short list only after the summary, not instead of it.
@@ -198,9 +213,9 @@ Code the agent writes or substantially edits must be documented in **English**:
 
 Before calling implementation work done:
 
-1. `docs/ACCEPTANCE.md` sections 1–3 are met (stories, alerts, NFRs).
-2. `python -m unittest` is green.
-3. `python pim.py` can run the demo script in `docs/ACCEPTANCE.md` section 6 on macOS with stdlib only.
+1. Every FR and NFR in the SRS is met, and `REQUIREMENTS.md` shows no row as not implemented.
+2. `python3 -m unittest` is green.
+3. `python3 pim.py` can run the demo script in `docs/BACKLOG.md` on macOS with stdlib only.
 4. No third-party imports anywhere in the submitted source.
 
 SRS, typeset design document, videos, and Honour Declaration are separate deliverables. Do not claim those are done when only code is done.

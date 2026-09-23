@@ -11,7 +11,7 @@ from tests.e2e.harness import result_ids, run_script
 
 
 def fixture_lines():
-    """Keystrokes that create the ACCEPTANCE §4 fixture."""
+    """Keystrokes that create the tests/fixture.py fixture."""
     return [
         "create note",
         "Shopping: Milk",

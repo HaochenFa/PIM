@@ -1,4 +1,9 @@
-"""Acceptance fixture (docs/ACCEPTANCE.md section 4)."""
+"""Shared six-PIR test fixture used by the search, integration, and e2e tests.
+
+Ids 1-6: a Note; a Task with a deadline and one without; an Event with a
+1-day relative, an at-start relative, and an absolute alarm; and two Contacts
+both named Ada (one with only a mobile, one with only an address).
+"""
 
 from model import PIM, AbsoluteAlarm, RelativeAlarm
 

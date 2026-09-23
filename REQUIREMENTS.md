@@ -1,6 +1,6 @@
 # Requirements coverage
 
-This report lists which Appendix B user stories, and which requirements in the SRS (version 1.1, `docs/deliverables/SRS.md`, rendered as `SRS.pdf`), the implementation covers. All 11 user stories, all 43 functional requirements (FR-1 – FR-43), and all 10 non-functional requirements (NFR-1 – NFR-10) are implemented, so the "Not implemented" section is empty.
+This report lists which Appendix B user stories, and which requirements in the SRS (version 1.2, `docs/deliverables/SRS.md`, rendered as `SRS.pdf`), the implementation covers. All 11 user stories, all 43 functional requirements (FR-1 – FR-43), and all 10 non-functional requirements (NFR-1 – NFR-10) are implemented, so the "Not implemented" section is empty.
 
 Evidence names the automated tests that check each row. All 330 tests pass with `python3 -m unittest` (24 Sep 2026), and the model unit tests cover 100 % of the countable lines in `model/` (`coverage.txt`).
 
