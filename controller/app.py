@@ -2,14 +2,21 @@
 
 from __future__ import annotations
 
+import os
+from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from controller.errors import message_for
 from model import PIM, PIMError, ValidationError, parse_criterion
 from model.pimfile import append_pim_extension
 
+if TYPE_CHECKING:
+    from model import DueAlarm
+    from model.pir import PIR
 
-def format_pir(pir) -> str:
+
+def format_pir(pir: PIR) -> str:
     """One PIR as `key: value` lines for print."""
     return "\n".join(f"{key}: {value}" for key, value in pir.detail_lines())
 
@@ -54,7 +61,7 @@ class App:
         else:
             self.status_kind = STATUS_INFO
 
-    def bound_path(self):
+    def bound_path(self) -> str | None:
         """Bound File path, or None if untitled."""
         return self.pim.bound_path()
 
@@ -62,14 +69,14 @@ class App:
         """True if the Working Collection has unsaved changes."""
         return self.pim.is_dirty()
 
-    def save_target(self, path) -> str:
+    def save_target(self, path: str | os.PathLike[str]) -> str:
         """Path that save would write, with `.pim` appended if omitted.
 
         Raises ValidationError if the path has no file name (blank or `.pim`).
         """
         return str(append_pim_extension(path))
 
-    def would_overwrite(self, path) -> bool:
+    def would_overwrite(self, path: str | os.PathLike[str]) -> bool:
         """True if `save as` would replace a file that is not the Bound File.
 
         An invalid path is not an overwrite; `save` then reports why it failed.
@@ -88,15 +95,15 @@ class App:
         except OSError:
             return str(target) != str(bound)
 
-    def clear_print(self):
+    def clear_print(self) -> None:
         """Drop the last print buffer."""
         self.print_text = ""
 
-    def current_result(self):
+    def current_result(self) -> list[PIR]:
         """PIRs in the current list (search hits, or the whole collection)."""
         return list(self._result)
 
-    def selected(self):
+    def selected(self) -> PIR | None:
         """The selected PIR, or None if none / it left Current Result."""
         if self._selected_id is None:
             return None
@@ -106,7 +113,7 @@ class App:
             self._selected_id = None
             return None
 
-    def selected_id(self):
+    def selected_id(self) -> int | None:
         """Id of the selection, or None."""
         pir = self.selected()
         return None if pir is None else pir.id
@@ -115,15 +122,15 @@ class App:
         """True when Current Result is a search hit list."""
         return self._criterion is not None
 
-    def criterion_line(self):
+    def criterion_line(self) -> str | None:
         """Source text of the current search, or None when unfiltered."""
         return self._criterion_line
 
-    def due_alarms(self, now):
+    def due_alarms(self, now: datetime) -> list[DueAlarm]:
         """Due alarms at injected `now`."""
         return self.pim.due_alarms(now)
 
-    def create(self, type_name, fields):
+    def create(self, type_name: str, fields: dict[str, object]) -> PIR | None:
         """Create one PIR. On failure, status is set and the collection is unchanged."""
         factory = _CREATE.get(type_name)
         if factory is None:
@@ -131,7 +138,7 @@ class App:
             return None
         return self._create(lambda: factory(self.pim, fields), type_name.capitalize())
 
-    def modify(self, fields):
+    def modify(self, fields: dict[str, object]) -> PIR | None:
         """Modify the selection. Empty `fields` is a no-op and does not mark dirty."""
         pir = self.selected()
         if pir is None:
@@ -152,7 +159,7 @@ class App:
         self.set_status(f"Modified Id {updated.id}", STATUS_OK)
         return updated
 
-    def delete_selected(self):
+    def delete_selected(self) -> bool:
         """Delete the selection after the View has confirmed. False if none selected."""
         pir = self.selected()
         if pir is None:
@@ -188,14 +195,14 @@ class App:
         self.set_status(f"{len(hits)} match(es)", STATUS_OK)
         return True
 
-    def clear_search(self):
+    def clear_search(self) -> None:
         """Restore Current Result to the whole collection."""
         self._criterion = None
         self._criterion_line = None
         self._refresh()
         self.set_status("Search cleared", STATUS_INFO)
 
-    def select_row(self, number):
+    def select_row(self, number: int | str) -> None:
         """Select by 1-based row of Current Result. Row numbers are not identity."""
         try:
             index = int(number)
@@ -208,7 +215,7 @@ class App:
         self._selected_id = self._result[index - 1].id
         self.set_status(f"Selected Id {self._selected_id}", STATUS_INFO)
 
-    def select_id(self, pir_id):
+    def select_id(self, pir_id: int | str) -> None:
         """Select by Id. Status names NotFound if missing."""
         try:
             pir = self.pim.get(pir_id)
@@ -218,7 +225,7 @@ class App:
         self._selected_id = pir.id
         self.set_status(f"Selected Id {pir.id}", STATUS_INFO)
 
-    def print_selected(self):
+    def print_selected(self) -> str | None:
         """Fill print_text with every field of the selection."""
         pir = self.selected()
         if pir is None:
@@ -228,7 +235,7 @@ class App:
         self.set_status(f"Printed Id {pir.id}", STATUS_OK)
         return self.print_text
 
-    def print_all(self):
+    def print_all(self) -> str:
         """Fill print_text with every PIR in Current Result, not the unfiltered collection."""
         if not self._result:
             self.print_text = "(Current Result is empty)"
@@ -237,7 +244,7 @@ class App:
         self.set_status(f"Printed {len(self._result)} PIR(s) in Current Result", STATUS_OK)
         return self.print_text
 
-    def save(self, path=None):
+    def save(self, path: str | os.PathLike[str] | None = None) -> bool:
         """Write the Bound File, or `path` for save as. False on domain or OS failure.
 
         An OSError (permission denied, disk full) becomes one status line that
@@ -260,7 +267,7 @@ class App:
         self.set_status(f"Saved {self.pim.bound_path()}", STATUS_OK)
         return True
 
-    def load(self, path, force=False):
+    def load(self, path: str | os.PathLike[str], force: bool = False) -> bool:
         """Replace the collection. `force` discards unsaved changes. False on failure."""
         try:
             self.pim.load(path, force=force)
@@ -275,7 +282,7 @@ class App:
         self.set_status(f"Loaded {self.pim.bound_path()}", STATUS_OK)
         return True
 
-    def _create(self, factory, label):
+    def _create(self, factory, label: str) -> PIR | None:
         try:
             pir = factory()
         except PIMError as exc:
@@ -286,7 +293,7 @@ class App:
         self.set_status(f"Created {label} Id {pir.id}", STATUS_OK)
         return pir
 
-    def _refresh(self):
+    def _refresh(self) -> None:
         if self._criterion is None:
             self._result = self.pim.all()
         else:
