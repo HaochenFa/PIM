@@ -252,7 +252,7 @@ STRING     := '"' characters '"'      (\" and \\ escape)
 
 ## 6.6 Storing (US10)
 
-**FR-29** `save as <path>` shall write the Working Collection to `<path>`, appending `.pim` when the path does not already end in `.pim`. The path then becomes the Bound File. `save` shall write to the Bound File without asking, or behave as `save as` when there is none.
+**FR-29** `save as <path>` shall write the Working Collection to `<path>`, appending `.pim` when the path does not already end in `.pim`. The path then becomes the Bound File. `save` shall write to the Bound File without asking, or behave as `save as` when there is none. The user chooses the folder by typing the path: it may be absolute, begin with `~` for the home folder, or be relative to the folder the system was started from. This typed path is the command-line counterpart of a file dialog. After a successful save, the status line shall name the absolute path that was written.
 
 **FR-30** If `save as` would replace an existing file that is not the Bound File, the system shall ask for confirmation.
 
@@ -266,7 +266,7 @@ STRING     := '"' characters '"'      (\" and \\ escape)
 
 ## 6.7 Loading (US11)
 
-**FR-34** `load <path>` shall accept only a path ending in `.pim`; any other path shall be rejected before the file is read. A successful load shall replace the Working Collection, the next Id, and the Bound File, and shall clear any search.
+**FR-34** `load <path>` shall accept only a path ending in `.pim`; any other path shall be rejected before the file is read. A successful load shall replace the Working Collection, the next Id, and the Bound File, and shall clear any search. `<path>` takes the same forms as in FR-29, and the status line shall name the absolute path that was read.
 
 **FR-35** A successful save followed by a load shall give back the same PIRs with the same Ids, types, fields, alarm kinds, and Effective Alarm Times.
 
@@ -290,7 +290,7 @@ STRING     := '"' characters '"'      (\" and \\ escape)
 - `save`, `save as <path>`, `load <path>`
 - `dismiss`, `help`, `quit`
 
-An unknown command shall be reported as an error and change nothing. On a TTY, single-key accelerators (for example `c` create, `/` search) shall run the same commands.
+An unknown command shall be reported as an error and change nothing. On a TTY, single-key accelerators (for example `c` create, `/` search, `w` save, `W` save as, `o` load) shall run the same commands.
 
 **FR-39** The screen shall show:
 
