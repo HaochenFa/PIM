@@ -181,12 +181,13 @@ class AppPersistTests(unittest.TestCase):
         target = app.save_target(self.dir / "demo")
         self.assertTrue(str(target).endswith(".pim"))
         self.assertTrue(app.save(self.dir / "demo"))
+        self.assertEqual(app.status, f"Saved {self.dir / 'demo.pim'}")
         self.assertFalse(app.is_dirty())
         self.assertTrue(Path(app.bound_path()).exists())
         other = App(PIM())
         self.assertTrue(other.load(self.dir / "demo.pim"))
         self.assertEqual(ids_of(other), [1, 2, 3, 4, 5, 6])
-        self.assertTrue(other.status.startswith("Loaded "))
+        self.assertEqual(other.status, f"Loaded {self.dir / 'demo.pim'}")
 
     def test_save_without_bound_file_fails(self):
         app = App(PIM())

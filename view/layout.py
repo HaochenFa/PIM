@@ -16,11 +16,13 @@ MENU = (
     "create  search  clear  modify  print  print all  delete  "
     "save  save as  load  dismiss  help  quit"
 )
+# `d dismiss` is shown on the alarm banner itself, so the idle footer keeps
+# room for the file keys.
 HINTS = (
-    "↑↓ move   / search   c create   m modify   p print   x delete   "
-    "d dismiss   ? keys   q quit"
+    "↑↓ move  / search  c create  m modify  p print  x delete  "
+    "w save  o load  ? keys  q quit"
 )
-HINTS_FILTERED = HINTS + "   Esc clear"
+HINTS_FILTERED = HINTS + "  Esc clear"
 EMPTY_INVITE = "No PIRs — press c, then pick a type"
 SEARCH_EXAMPLE = 'type = event && description contains "COMP"'
 SEARCH_HINT = 'type = note  ·  description contains "…"  ·  deadline < …  ·  && || !'

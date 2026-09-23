@@ -365,7 +365,7 @@ class SaveLoadQuitTests(unittest.TestCase):
     def test_save_asks_path_when_untitled(self):
         app, term, _out = make_terminal()
         feed(term, "save")
-        self.assertEqual(term._prompt_label(), "path: ")
+        self.assertEqual(term._prompt_label(), "save as path: ")
         feed(term, "/tmp/demo")
         self.assertEqual(app.calls[-1], ("save", "/tmp/demo"))
 
@@ -558,8 +558,37 @@ class AcceleratorAndCursesGateTests(unittest.TestCase):
     def test_save_accelerator_asks_path_when_untitled(self):
         app, term, _out = make_terminal()
         term.apply_accelerator("save")
-        self.assertEqual(term._prompt_label(), "path: ")
+        self.assertEqual(term._prompt_label(), "save as path: ")
         self.assertNotIn(("save", None), app.calls)
+
+    def test_save_as_accelerator_asks_path_even_with_bound_file(self):
+        """`W` asks for a new path instead of rewriting the Bound File."""
+        app, term, _out = make_terminal()
+        app._bound = "/tmp/old.pim"
+        term.apply_accelerator("save_as")
+        self.assertEqual(term._prompt_label(), "save as path: ")
+        self.assertEqual(app.calls, [])
+        feed(term, "/tmp/new")
+        self.assertEqual(app.calls[-1], ("save", "/tmp/new"))
+
+    def test_load_accelerator_asks_path_then_loads(self):
+        """`o` asks "load path: " and loads the typed path when clean."""
+        app, term, _out = make_terminal()
+        term.apply_accelerator("load")
+        self.assertEqual(term._prompt_label(), "load path: ")
+        feed(term, "~/work.pim")
+        self.assertEqual(app.calls[-1], ("load", "~/work.pim", False))
+
+    def test_load_accelerator_when_dirty_asks_save_discard_cancel(self):
+        """`o` with unsaved changes asks save/discard/cancel before loading; discard forces."""
+        app, term, _out = make_terminal()
+        app._dirty = True
+        term.apply_accelerator("load")
+        feed(term, "/tmp/work.pim")
+        self.assertIn("unsaved changes", term._prompt_label())
+        self.assertNotIn("load", [call[0] for call in app.calls])
+        feed(term, "discard")
+        self.assertEqual(app.calls[-1], ("load", "/tmp/work.pim", True))
 
     def test_create_and_search_accelerators_open_prompts(self):
         app, term, _out = make_terminal()

@@ -21,14 +21,18 @@ FORMAT = "pim/v1"
 
 
 def _named_path(path: str | os.PathLike[str] | None) -> Path:
-    """`path` as a Path. Raises ValidationError if it is blank or names only `.pim`.
+    """`path` as a Path with a leading `~` expanded to the home directory.
 
+    Raises ValidationError if it is blank or names only `.pim`.
     `Path(".pim").suffix` is empty, so a bare `.pim` would otherwise be saved
     as `.pim.pim`, and a blank path as `..pim` in the working directory.
     """
     if path is None or is_blank(str(path)):
         raise ValidationError("file name is required")
-    path = Path(path)
+    # Users type `~/Desktop/x`; unexpanded, save's mkdir(parents=True) would
+    # create a literal `~` folder. os.path.expanduser leaves an unknown `~user`
+    # unchanged instead of raising like Path.expanduser.
+    path = Path(os.path.expanduser(str(path)))
     if path.name.casefold() in {"", ".", ".pim"}:
         raise ValidationError("file name is required")
     return path

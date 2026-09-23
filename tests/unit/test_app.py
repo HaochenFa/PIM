@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import unittest
 from unittest.mock import Mock
 
@@ -205,10 +206,21 @@ class AppSearchSaveTests(unittest.TestCase):
         app = App(pim)
         self.assertTrue(app.save())
         pim.save.assert_called_once_with("/tmp/x.pim")
-        self.assertTrue(app.status.startswith("Saved "))
+        self.assertEqual(app.status, "Saved /tmp/x.pim")
         self.assertTrue(app.load("/tmp/x.pim"))
         pim.load.assert_called_once_with("/tmp/x.pim", force=False)
-        self.assertTrue(app.status.startswith("Loaded "))
+        self.assertEqual(app.status, "Loaded /tmp/x.pim")
+
+    def test_save_and_load_status_show_the_absolute_path(self):
+        """A relative Bound File is shown resolved against the working directory."""
+        pim = _pim()
+        pim.bound_path.return_value = "work.pim"
+        app = App(pim)
+        expected = os.path.join(os.getcwd(), "work.pim")
+        self.assertTrue(app.save())
+        self.assertEqual(app.status, f"Saved {expected}")
+        self.assertTrue(app.load("work.pim"))
+        self.assertEqual(app.status, f"Loaded {expected}")
 
     def test_save_os_error_names_target_not_temp_file(self):
         """PermissionError from PIM.save sets `cannot save <target>.pim: <reason>`; returns False."""

@@ -76,6 +76,8 @@ Out: fuzzy match, locale case rules, Series.
 
 - `save as path` appends `.pim` if missing; on disk the file is UTF-8 JSON with `format` `pim/v1`.
 - `load` of a non-`.pim` path → fail, no parse.
+- `save as ~/dir/name` writes `<home>/dir/name.pim` (no literal `~` folder); `load ~/dir/name.pim` reads it back. The status line names the absolute path.
+- On a TTY, `W` asks for a save-as path and `o` asks for a load path, with the same dirty and overwrite rules as the typed commands.
 - save → load round-trip: Id, type, fields, Alarm kinds, and effective instants match.
 - Load or quit while dirty: the user must choose save / discard / cancel; cancel leaves state unchanged.
 - `save` overwrites the Bound File without asking; `save as` overwriting another existing file asks.

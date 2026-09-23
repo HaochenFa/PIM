@@ -70,6 +70,8 @@ These run immediately when the prompt is empty (nothing typed, no wizard):
 | `x` or `Delete` | Delete the selection (`y`/`n`) |
 | `d` | Dismiss the first listed alarm |
 | `w` | Save (asks for a path if untitled) |
+| `W` | Save as: asks for a path, e.g. `~/Desktop/work` |
+| `o` | Load (open) a `.pim` file: asks for a path. Unsaved changes ask save / discard / cancel first |
 | `:` | Type a full command (same verbs as below) |
 | `?` | Key help overlay |
 | `q` | Quit |
@@ -94,6 +96,8 @@ While a wizard is asking for a field, type the value and press Enter. Empty Ente
 | `dismiss` | Hide the first listed alarm for this process (not written to the file) |
 | `help` | Command list |
 | `quit` | Unsaved changes ask save / discard / cancel. Ctrl-C and closing input (Ctrl-D) are the same as quit; they do not silently drop unsaved changes. |
+
+**Choosing where to save and what to open.** The PIM is a command-line program, so there is no Finder dialog: you type the location at the `save as path:` or `load path:` prompt (`W` / `o` in the full-screen UI, or `save as <path>` / `load <path>` as commands). Paths may be absolute (`/Users/you/Documents/work.pim`), start with `~` for your home folder (`~/Desktop/work`), or be relative to the folder you started `python pim.py` from. Missing folders on a save path are created. After a save or load, the status line shows the full path, e.g. `Saved /Users/you/Desktop/work.pim`.
 
 ## Search criterion
 

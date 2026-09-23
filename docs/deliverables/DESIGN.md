@@ -104,7 +104,7 @@ The Working Collection: PIR identity, search, persistence, and due alarms.
 | `list[PIR]` | `all` | — | — | Every PIR in Id order. |
 | `list[PIR]` | `search` | `criterion: Criterion` | — | The PIRs for which `criterion.matches(pir)` is true, in Id order. |
 | `list[DueAlarm]` | `due_alarms` | `now: datetime \| str` | `ValidationError` | OVERDUE and SOON alarms at the given `now`. Never reads the clock. |
-| `None` | `save` | `path: str \| os.PathLike[str]` | `ValidationError`, `OSError` | Writes the PIM File atomically, appending `.pim` if missing; binds the path and clears the dirty flag. |
+| `None` | `save` | `path: str \| os.PathLike[str]` | `ValidationError`, `OSError` | Writes the PIM File atomically, appending `.pim` if missing and expanding a leading `~`; binds the path and clears the dirty flag. |
 | `None` | `load` | `path: str \| os.PathLike[str]`, `force: bool = False` (keyword) | `ExtensionError`, `ValidationError`, `DirtyLoadError`, `FileFormatError` | Replaces the collection from a file. Parses fully before replacing, so a bad file changes nothing. |
 | `bool` | `is_dirty` | — | — | True if there are unsaved changes. |
 | `str \| None` | `bound_path` | — | — | Path of the last successful save or load. |
@@ -217,8 +217,8 @@ The controller never raises: on failure it sets the status and returns `None` or
 | `None` | `select_row` / `select_id` | `number: int \| str` / `pir_id: int \| str` | Selects by row of the Current Result, or by Id. |
 | `str \| None` | `print_selected` | — | Detail text of the selection. |
 | `str` | `print_all` | — | Detail text of every PIR in the Current Result. |
-| `bool` | `save` | `path: str \| os.PathLike[str] \| None = None` | Saves to the Bound File or to `path`. Reports `OSError` as a status. |
-| `bool` | `load` | `path: str \| os.PathLike[str]`, `force: bool = False` | Loads and resets the search and the Selection. |
+| `bool` | `save` | `path: str \| os.PathLike[str] \| None = None` | Saves to the Bound File or to `path`; the status names the absolute path. Reports `OSError` as a status. |
+| `bool` | `load` | `path: str \| os.PathLike[str]`, `force: bool = False` | Loads and resets the search and the Selection; the status names the absolute path. |
 | `list[DueAlarm]` | `due_alarms` | `now: datetime` | Passes through to the model. |
 | `list[PIR]` / `PIR \| None` / `bool` | `current_result` / `selected` / `is_dirty` | — | State that the View reads to draw the screen. |
 | `bool` | `would_overwrite` | `path: str \| os.PathLike[str]` | Whether `save as` would replace another existing file. |
@@ -264,7 +264,7 @@ It has one public method, `loop() -> None`: the full-screen event loop (`get_wch
 |---|---|
 | `view.layout` | Builds the screen model: title, banner, list rows, detail, and menu. |
 | `view.widgets` | `Chooser` (a closed list of answers) and `DateTimePicker` (calendar and time). |
-| `view.keys` | Maps keys to actions (accelerators). |
+| `view.keys` | Maps keys to actions (accelerators), e.g. `w` save, `W` save as, `o` load. |
 | `view.theme` | Colour roles for 256-colour, 8-colour, and monochrome terminals. |
 | `view.textwidth` | East-Asian-width-aware clipping and padding. |
 | `view.stdin_reader` | Daemon thread that feeds lines into the `Queue` in the line UI. |

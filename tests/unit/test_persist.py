@@ -28,6 +28,29 @@ class PersistTests(unittest.TestCase):
     def tearDown(self):
         self.tmpdir.cleanup()
 
+    def test_tilde_path_saves_and_loads_under_home(self):
+        """`~/sub/work` saves to $HOME/sub/work.pim, binds the expanded path, and loads back."""
+        home = self.dir / "home"
+        with patch.dict("os.environ", {"HOME": str(home)}):
+            pim = make_fixture()
+            pim.save("~/sub/work")
+            target = home / "sub" / "work.pim"
+            self.assertTrue(target.is_file())
+            self.assertEqual(pim.bound_path(), str(target))
+            loaded = PIM()
+            loaded.load("~/sub/work.pim")
+            self.assertEqual([pir.id for pir in loaded.all()], [1, 2, 3, 4, 5, 6])
+            self.assertEqual(loaded.bound_path(), str(target))
+
+    def test_tilde_path_with_other_extension_is_still_rejected(self):
+        """`~/x.json` raises ExtensionError after expansion; the collection is unchanged."""
+        with patch.dict("os.environ", {"HOME": str(self.dir)}):
+            (self.dir / "x.json").write_text("{}", encoding="utf-8")
+            pim = PIM()
+            with self.assertRaises(ExtensionError):
+                pim.load("~/x.json")
+            self.assertEqual(pim.all(), [])
+
     def test_save_appends_pim_and_round_trips(self):
         """US10/US11: save appends `.pim`; load restores all 6 PIRs, fields, and alarms, and is clean."""
         pim = make_fixture()

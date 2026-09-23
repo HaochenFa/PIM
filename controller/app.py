@@ -247,6 +247,8 @@ class App:
     def save(self, path: str | os.PathLike[str] | None = None) -> bool:
         """Write the Bound File, or `path` for save as. False on domain or OS failure.
 
+        On success the status names the absolute path that was written.
+
         An OSError (permission denied, disk full) becomes one status line that
         names the `.pim` target; the collection stays dirty.
         """
@@ -262,13 +264,17 @@ class App:
         except OSError as exc:
             # exc.filename may be the hidden temp file; show the user's target instead.
             reason = exc.strerror or str(exc)
-            self.set_status(f"cannot save {self.save_target(path)}: {reason}", STATUS_ERR)
+            self.set_status(f"cannot save {os.path.abspath(self.save_target(path))}: {reason}", STATUS_ERR)
             return False
-        self.set_status(f"Saved {self.pim.bound_path()}", STATUS_OK)
+        # Absolute, so a relative or `~` path shows where the file really went.
+        self.set_status(f"Saved {os.path.abspath(self.pim.bound_path())}", STATUS_OK)
         return True
 
     def load(self, path: str | os.PathLike[str], force: bool = False) -> bool:
-        """Replace the collection. `force` discards unsaved changes. False on failure."""
+        """Replace the collection. `force` discards unsaved changes. False on failure.
+
+        On success the status names the absolute path that was read.
+        """
         try:
             self.pim.load(path, force=force)
         except PIMError as exc:
@@ -279,7 +285,7 @@ class App:
         self._selected_id = None
         self.print_text = ""
         self._refresh()
-        self.set_status(f"Loaded {self.pim.bound_path()}", STATUS_OK)
+        self.set_status(f"Loaded {os.path.abspath(self.pim.bound_path())}", STATUS_OK)
         return True
 
     def _create(self, factory, label: str) -> PIR | None:
