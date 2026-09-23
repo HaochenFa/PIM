@@ -13,11 +13,11 @@ If anything conflicts, follow this order:
 3. `docs/ARCHITECTURE.md`
 4. `docs/ACCEPTANCE.md`
 5. `CONTEXT.md`
-6. `docs/adr/`
+6. `docs/deliverables/DESIGN.md` §6 (design decisions ADR-0001–ADR-0019)
 7. `AGENTS.md`
 8. `README.md`
 
-Do not reopen locked decisions. Do not add ADRs that contradict accepted ones. If a genuine conflict with the brief appears, stop and tell the user; do not patch around it.
+Do not reopen locked decisions. Do not add decisions that contradict accepted ones. If a genuine conflict with the brief appears, stop and tell the user; do not patch around it.
 
 ## Project intent
 
@@ -57,7 +57,8 @@ If a user or another agent asks for an out-of-scope feature, refuse it against t
 | Fields, search grammar, interaction | `docs/PRODUCT.md` |
 | Packages, `PIM` interface, JSON schema, event loop | `docs/ARCHITECTURE.md` |
 | Observable tests, fixture, ZIP, demo script | `docs/ACCEPTANCE.md` |
-| Why a choice was made | `docs/adr/0001`–`0019` |
+| Why a choice was made | `docs/deliverables/DESIGN.md` §6 (ADR-0001–ADR-0019) |
+| Open work and known UI gaps | `docs/BACKLOG.md` |
 
 Use glossary terms as written. Forbidden substitutions:
 
@@ -113,9 +114,10 @@ Use glossary terms as written. Forbidden substitutions:
 - Implement the locked design. Do not “simplify” by collapsing MVC, swapping JSON for pickle, or blocking on `input()`.
 - Do not start coding a new PIR type, a fifth package, or a TUI framework to make the UI “nicer”.
 - When implementing, keep `model` the test surface: if a rule cannot be tested through `PIM` / Criterion, it is in the wrong package.
-- If you must choose a detail not in the docs (e.g. exact menu keystrokes), pick the smallest option that still satisfies acceptance, and record it in a new ADR only if it is hard to reverse, surprising, and a real trade-off.
+- If you must choose a detail not in the docs (e.g. exact menu keystrokes), pick the smallest option that still satisfies acceptance, and record it as the next entry (ADR-0020, …) in `docs/deliverables/DESIGN.md` §6 only if it is hard to reverse, surprising, and a real trade-off.
 - Do not update `CONTEXT.md` with implementation types, file paths, or Python names. Glossary is domain only.
-- Do not rewrite `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/ACCEPTANCE.md`, or accepted ADRs unless the user explicitly changes a product decision.
+- Do not rewrite `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/ACCEPTANCE.md`, or the accepted decisions in DESIGN §6 unless the user explicitly changes a product decision.
+- Do not add dated plan files or a separate ADR folder. Open work, manual checks, and known gaps go in `docs/BACKLOG.md`; move an item to its Done table when it lands.
 - Honour Declaration: GenAI use is allowed if acknowledged. Do not invent a false “no GenAI” claim. Contribution splits are the group’s, not the agent’s.
 
 ## Commit messages
