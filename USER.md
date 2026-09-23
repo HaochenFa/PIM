@@ -95,6 +95,8 @@ While a wizard is asking for a field, type the value and press Enter. Empty Ente
 | `help` | Command list |
 | `quit` | Unsaved changes ask save / discard / cancel. Ctrl-C and closing input (Ctrl-D) are the same as quit; they do not silently drop unsaved changes. |
 
+Paths for `save as` and `load` may be absolute (`/Users/you/Documents/work.pim`), start with `~` for your home folder (`~/Desktop/work`), or be relative to the folder you started `python pim.py` from. Missing folders on a save path are created.
+
 ## Search criterion
 
 ```
