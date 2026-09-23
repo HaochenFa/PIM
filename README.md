@@ -2,22 +2,20 @@
 
 Command-line Personal Information Management system for PolyU COMP3211 Software Engineering (Fall 2026).
 
-The assignment brief is [`Project Description.pdf`](Project Description.pdf). Product decisions, architecture, and acceptance criteria are locked in the documents below. Implementation must follow those files, not reopen them.
+The assignment brief is [`Project Description.pdf`](Project Description.pdf). Requirements are specified in the SRS and the design, with its decisions, in the design document. Implementation must follow those files, not reopen them.
 
 ## Documents
 
 | File | What it is |
 |---|---|
-| [`docs/PRODUCT.md`](docs/PRODUCT.md) | Product scope, PIR types, search, persistence, interaction |
-| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | MVC, `model` interface, event loop, `.pim` JSON, search-then-update sequence |
-| [`docs/ACCEPTANCE.md`](docs/ACCEPTANCE.md) | Observable criteria for US1–US11, tests, ZIP contents, demo script |
-| [`CONTEXT.md`](CONTEXT.md) | Domain glossary (PIR, Id, Alarm, Current Result, …) |
-| [`docs/deliverables/SRS.md`](docs/deliverables/SRS.md) | Software requirements specification (course deliverable 1) |
-| [`docs/deliverables/DESIGN.md`](docs/deliverables/DESIGN.md) | Design document (deliverable 2); §5 records the design decisions and their reasons |
-| [`docs/BACKLOG.md`](docs/BACKLOG.md) | Open deliverables, manual checks, known UI gaps, and a log of what landed |
+| [`docs/deliverables/SRS.md`](docs/deliverables/SRS.md) | Software requirements specification (deliverable 1): scope, glossary, every functional and non-functional requirement |
+| [`docs/deliverables/DESIGN.md`](docs/deliverables/DESIGN.md) | Design document (deliverable 2): MVC architecture, classes, PIM File format, search-then-update sequence; §5 records the design decisions |
+| [`USER.md`](USER.md) / [`DEVELOPER.md`](DEVELOPER.md) | User manual and developer manual |
+| [`REQUIREMENTS.md`](REQUIREMENTS.md) / `coverage.txt` | Requirements coverage report and `model/` line coverage |
+| [`docs/BACKLOG.md`](docs/BACKLOG.md) | Open deliverables, demo script, manual checks, known UI gaps, and a log of what landed |
 | [`AGENTS.md`](AGENTS.md) | Rules for AI agents: precedence, scope, architecture, gates |
 
-Use the glossary terms as written. Do not treat **Name** as a title, **Label** as identity, or **Note** as a field name.
+Use the SRS glossary (§3) terms as written. Do not treat **Name** as a title, **Label** as identity, or **Note** as a field name.
 
 ## Product in one paragraph
 
@@ -34,8 +32,7 @@ tests/unit/     # model (100% lines) + controller + view
 tests/integration/
 tests/e2e/
 hooks/          # pre-commit: unit + integration + e2e
-docs/
-CONTEXT.md
+docs/           # SRS, design document, backlog
 README.md
 ```
 
@@ -53,4 +50,4 @@ Run with `python3 pim.py`. Tests: `python3 -m unittest`. Coverage: `python3 cove
 
 One ZIP by **20:00, 20 November 2026**: SRS, design document, source, manuals, ≤4 min system video, requirements coverage table, model tests and coverage report, presentation PDF and ≤5 min recording, Honour Declaration at the ZIP root.
 
-Checklist and demo script: [`docs/ACCEPTANCE.md`](docs/ACCEPTANCE.md).
+Open items and the demo script: [`docs/BACKLOG.md`](docs/BACKLOG.md).
