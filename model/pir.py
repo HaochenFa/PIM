@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 HKT = ZoneInfo("Asia/Hong_Kong")
@@ -24,8 +24,6 @@ CLEAR = "none"
 KIND_TEXT = "text"
 KIND_DATETIME = "datetime"
 KIND_ALARMS = "alarms"
-# What an alarm list may hold: alarm objects, or pim/v1 JSON dicts on load.
-AlarmSpec = "RelativeAlarm | AbsoluteAlarm | dict"
 
 
 @dataclass(frozen=True)
@@ -141,9 +139,14 @@ def require_hkt_range(dt: datetime) -> datetime:
     """Return `dt` if it can be shown in Hong Kong Time; else ValidationError.
 
     An instant such as 9999-12-31T23:59-10:00 parses, but converting it to
-    HKT overflows the datetime range, so the View could not display it.
+    HKT or UTC overflows the datetime range, so it could not be displayed
+    or saved and loaded back.
     """
     try:
+        # astimezone(HKT) is a no-op when tzinfo is already HKT, so also go
+        # through UTC: a value that cannot be expressed there would save but
+        # not load back (it is stored with a fixed offset).
+        dt.astimezone(timezone.utc)
         dt.astimezone(HKT)
     except OverflowError as exc:
         raise ValidationError("datetime out of range") from exc
@@ -263,6 +266,10 @@ def check_alarm_times(start: datetime, alarms: list[RelativeAlarm | AbsoluteAlar
         except OverflowError as exc:
             raise ValidationError("alarm time is out of range") from exc
 
+
+
+# What an alarm list may hold: alarm objects, or pim/v1 JSON dicts on load.
+AlarmSpec = RelativeAlarm | AbsoluteAlarm | dict
 
 class DueAlarm:
     """One OVERDUE or SOON alarm at an injected `now`. `key` is (event Id, alarm index)."""

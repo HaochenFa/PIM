@@ -267,6 +267,16 @@ class PersistTests(unittest.TestCase):
             with self.assertRaises(FileFormatError, msg=repr(bad)):
                 read_pim_file(path)
 
+    def test_earliest_accepted_start_round_trips(self):
+        """An Event at 0001-01-01 09:00 HKT, the earliest safe hour, saves and loads back unchanged."""
+        pim = PIM()
+        event = pim.create_event("ancient", "0001-01-01 09:00")
+        path = self.dir / "ancient.pim"
+        pim.save(path)
+        loaded = PIM()
+        loaded.load(path)
+        self.assertEqual(loaded.get(event.id).start, event.start)
+
     def test_write_failure_unlinks_temp_and_reraises(self):
         """A failed atomic replace re-raises OSError, even when removing the temp file also fails."""
         pim = PIM()

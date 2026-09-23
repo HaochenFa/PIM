@@ -145,10 +145,11 @@ class AlarmRangeTests(unittest.TestCase):
         self.assertEqual(pim.create_note("next").id, 1)
 
     def test_relative_alarm_before_year_one_fails_create(self):
-        """A2: 1 day before 0001-01-01 00:10 is out of range; create raises ValidationError."""
+        """A2: 1 day before 0001-01-01 09:00 is out of range; create raises ValidationError."""
         pim = PIM()
-        with self.assertRaises(ValidationError):
-            pim.create_event("ancient", "0001-01-01 00:10", [RelativeAlarm(1, "day")])
+        with self.assertRaises(ValidationError) as ctx:
+            pim.create_event("ancient", "0001-01-01 09:00", [RelativeAlarm(1, "day")])
+        self.assertEqual(ctx.exception.status_message(), "alarm time is out of range")
         self.assertEqual(pim.all(), [])
 
     def test_modify_start_that_pushes_alarm_out_of_range_is_atomic(self):
@@ -159,7 +160,7 @@ class AlarmRangeTests(unittest.TestCase):
         )
         before = event.to_json()
         with self.assertRaises(ValidationError):
-            pim.modify(event.id, {"start": "0001-01-01 00:10"})
+            pim.modify(event.id, {"start": "0001-01-01 09:00"})
         self.assertEqual(pim.get(event.id).to_json(), before)
 
     def test_in_range_event_keeps_search_and_due_alarms_working(self):
@@ -167,7 +168,7 @@ class AlarmRangeTests(unittest.TestCase):
         pim = PIM()
         pim.create_event("ok", "2026-09-14T18:30:00+08:00", [RelativeAlarm(0, "minute")])
         with self.assertRaises(ValidationError):
-            pim.create_event("bad", "0001-01-01 00:10", [RelativeAlarm(1, "day")])
+            pim.create_event("bad", "0001-01-01 09:00", [RelativeAlarm(1, "day")])
         now = parse_datetime("2026-09-14T18:30:00+08:00")
         self.assertEqual([item.event_id for item in pim.due_alarms(now)], [1])
         self.assertEqual(len(pim.search(parse_criterion("alarm < 2027-01-01"))), 1)

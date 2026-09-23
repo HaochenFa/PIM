@@ -91,6 +91,12 @@ class ParseDatetimeTests(unittest.TestCase):
         self.assertEqual(parse_datetime("9999-12-31T23:59").year, 9999)
 
 
+    def test_instant_before_year_one_in_utc_is_rejected_even_in_hkt(self):
+        """Bare 0001-01-01 00:10 HKT is before year 1 in UTC; parse raises instead of saving an unloadable file."""
+        with self.assertRaises(ValidationError):
+            parse_datetime("0001-01-01 00:10")
+        self.assertEqual(parse_datetime("0001-01-01 09:00").year, 1)
+
 class FieldHelperTests(unittest.TestCase):
     """Text field helpers: whitespace stripping and required vs optional values."""
     def test_require_text_strips_and_rejects_non_string(self):
