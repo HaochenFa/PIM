@@ -13,7 +13,7 @@ If anything conflicts, follow this order:
 3. `docs/ARCHITECTURE.md`
 4. `docs/ACCEPTANCE.md`
 5. `CONTEXT.md`
-6. `docs/deliverables/DESIGN.md` §6 (design decisions ADR-0001–ADR-0019)
+6. `docs/deliverables/DESIGN.md` §5 (design decisions)
 7. `AGENTS.md`
 8. `README.md`
 
@@ -34,11 +34,11 @@ Visible demo quality (designed terminal UI, in-process Alarm Alerts) is in scope
 
 ## Non-negotiable scope
 
-Implement exactly Appendix B (US1–US11) plus the HCI already decided: prompted create/modify, criterion-line search, in-process OVERDUE/SOON alerts, and a curses folder browser for load / save-as paths (ADR-0019).
+Implement exactly Appendix B (US1–US11) plus the HCI already decided: prompted create/modify, criterion-line search, in-process OVERDUE/SOON alerts, and a curses folder browser for load / save-as paths (DESIGN §5.4).
 
 **Out of scope** (do not implement, suggest, or leave stubs for):
 
-- GUI, Textual, Rich, prompt_toolkit, Click, colour libraries (stdlib `curses` on a TTY is the designed View; ADR-0018)
+- GUI, Textual, Rich, prompt_toolkit, Click, colour libraries (stdlib `curses` on a TTY is the designed View; DESIGN §5.1)
 - any pip / third-party dependency
 - networking, multi-user, sync, daemon process, OS notifications (`osascript`, etc.)
 - recurring events / Series / RRULE
@@ -57,7 +57,7 @@ If a user or another agent asks for an out-of-scope feature, refuse it against t
 | Fields, search grammar, interaction | `docs/PRODUCT.md` |
 | Packages, `PIM` interface, JSON schema, event loop | `docs/ARCHITECTURE.md` |
 | Observable tests, fixture, ZIP, demo script | `docs/ACCEPTANCE.md` |
-| Why a choice was made | `docs/deliverables/DESIGN.md` §6 (ADR-0001–ADR-0019) |
+| Why a choice was made | `docs/deliverables/DESIGN.md` §5 |
 | Open work and known UI gaps | `docs/BACKLOG.md` |
 
 Use glossary terms as written. Forbidden substitutions:
@@ -114,10 +114,10 @@ Use glossary terms as written. Forbidden substitutions:
 - Implement the locked design. Do not “simplify” by collapsing MVC, swapping JSON for pickle, or blocking on `input()`.
 - Do not start coding a new PIR type, a fifth package, or a TUI framework to make the UI “nicer”.
 - When implementing, keep `model` the test surface: if a rule cannot be tested through `PIM` / Criterion, it is in the wrong package.
-- If you must choose a detail not in the docs (e.g. exact menu keystrokes), pick the smallest option that still satisfies acceptance, and record it as the next entry (ADR-0020, …) in `docs/deliverables/DESIGN.md` §6 only if it is hard to reverse, surprising, and a real trade-off.
+- If you must choose a detail not in the docs (e.g. exact menu keystrokes), pick the smallest option that still satisfies acceptance, and record it as a row in the matching table of `docs/deliverables/DESIGN.md` §5 (decision, why, rejected) only if it is hard to reverse, surprising, and a real trade-off.
 - Do not update `CONTEXT.md` with implementation types, file paths, or Python names. Glossary is domain only.
-- Do not rewrite `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/ACCEPTANCE.md`, or the accepted decisions in DESIGN §6 unless the user explicitly changes a product decision.
-- Do not add dated plan files or a separate ADR folder. Open work, manual checks, and known gaps go in `docs/BACKLOG.md`; move an item to its Done table when it lands.
+- Do not rewrite `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/ACCEPTANCE.md`, or the accepted decisions in DESIGN §5 unless the user explicitly changes a product decision.
+- Do not add dated plan files or separate decision records (ADRs). Open work, manual checks, and known gaps go in `docs/BACKLOG.md`; move an item to its Done table when it lands.
 - Honour Declaration: GenAI use is allowed if acknowledged. Do not invent a false “no GenAI” claim. Contribution splits are the group’s, not the agent’s.
 
 ## Commit messages
@@ -135,7 +135,7 @@ Format:
 - **type**: `feat`, `fix`, `refactor`, `test`, `docs`, `chore` (use `feat` for user-visible behaviour, `fix` for defects, `refactor` for structure without behaviour change).
 - **scope**: usually `PIM`, or a tighter one when the change is local (`model`, `view`, `controller`, `tests`).
 - **summary**: imperative, lowercase after the colon, no trailing period; one line.
-- **body**: required unless the change is trivial (typo, path-only). State what changed, which stories or ADRs it serves, and any behaviour a reviewer must not miss. Wrap at ~72 characters.
+- **body**: required unless the change is trivial (typo, path-only). State what changed, which stories or design decisions it serves, and any behaviour a reviewer must not miss. Wrap at ~72 characters.
 
 Examples:
 
@@ -177,7 +177,7 @@ Do not paste the commit list as the whole summary. Do not write a one-line body 
 
 Required sections, in this order:
 
-1. **Summary** — what shipped and why (user stories, ADRs, or the defect). Two to five sentences. Name the user-visible behaviour.
+1. **Summary** — what shipped and why (user stories, design decisions, or the defect). Two to five sentences. Name the user-visible behaviour.
 2. **What changed** — bullets by layer (`model`, `view`/`controller`, tests, docs). Call out behaviour a reviewer must not miss (atomic failure, dirty load/quit, Current Result vs `print all`, injected `now`).
 3. **How to check** — exact commands (`python -m unittest`, `python pim.py`, demo steps from `docs/ACCEPTANCE.md` §6). State the platform if it matters (macOS).
 4. **Out of scope** — explicit: extra features not in Appendix B, and course artefacts this PR does not claim (SRS, videos, Honour Declaration) when that applies.
