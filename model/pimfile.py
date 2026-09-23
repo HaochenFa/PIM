@@ -20,7 +20,7 @@ from model.pir import (
 FORMAT = "pim/v1"
 
 
-def _named_path(path) -> Path:
+def _named_path(path: str | os.PathLike[str] | None) -> Path:
     """`path` as a Path. Raises ValidationError if it is blank or names only `.pim`.
 
     `Path(".pim").suffix` is empty, so a bare `.pim` would otherwise be saved
@@ -34,7 +34,7 @@ def _named_path(path) -> Path:
     return path
 
 
-def require_pim_extension(path) -> Path:
+def require_pim_extension(path: str | os.PathLike[str]) -> Path:
     """Return `path` as a Path. Raises ExtensionError if the suffix is not `.pim`."""
     path = _named_path(path)
     if path.suffix.casefold() != ".pim":
@@ -42,7 +42,7 @@ def require_pim_extension(path) -> Path:
     return path
 
 
-def append_pim_extension(path) -> Path:
+def append_pim_extension(path: str | os.PathLike[str]) -> Path:
     """Append `.pim` when omitted; leave an existing `.pim` suffix unchanged.
 
     Raises ValidationError if the path is blank or is only `.pim`.
@@ -63,7 +63,7 @@ def dump(next_id: int, pirs: list[PIR]) -> str:
     return json.dumps(payload, indent=2, ensure_ascii=False) + "\n"
 
 
-def write_pim_file(path, next_id: int, pirs: list[PIR]) -> Path:
+def write_pim_file(path: str | os.PathLike[str], next_id: int, pirs: list[PIR]) -> Path:
     """Atomic write: temp file in the same directory, then os.replace."""
     path = append_pim_extension(path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -84,7 +84,7 @@ def write_pim_file(path, next_id: int, pirs: list[PIR]) -> Path:
     return path
 
 
-def read_pim_file(path) -> tuple[int, list[PIR]]:
+def read_pim_file(path: str | os.PathLike[str]) -> tuple[int, list[PIR]]:
     """Parse a `.pim` file. Raises FileFormatError without mutating the caller."""
     path = require_pim_extension(path)
     try:
