@@ -109,8 +109,8 @@ The system shall support the following user stories, copied from Appendix B of t
 | US7 | As a user, I want to search for PIRs based on criteria concerning their types and the data stored in their fields. A criterion may check whether a piece of text (stored in a note, a description, a name, an address, or a mobile number) contains a string, whether a time (stored in a deadline, a starting time, or an alarm) is before (<), after (>), or equal to (=) another given point in time, or whether a condition combining multiple other conditions via logical connectors and (&&), or (\|\|), and negation (!) is satisfied. | FR-16 – FR-23 |
 | US8 | As a user, I want to print out detailed information about a specific PIR or all PIRs. | FR-24 – FR-26 |
 | US9 | As a user, I want to delete a specified PIR. | FR-27, FR-28 |
-| US10 | As a user, I want to store the PIRs in a file with the extension ".pim" so that I can access them using the PIM in the future. | FR-29 – FR-33 |
-| US11 | As a user, I want to load the PIRs from a file with the extension ".pim" so that I can continue working with the PIRs I stored earlier. | FR-34 – FR-37 |
+| US10 | As a user, I want to store the PIRs in a file with the extension name ".pim" so that I can access them using the PIM in the future. | FR-29 – FR-33 |
+| US11 | As a user, I want to load the PIRs from a file with the extension name ".pim" so that I can continue working with the PIRs I stored earlier. | FR-34 – FR-37 |
 
 The user-interface requirements FR-38 – FR-40 serve every story. The non-functional requirements NFR-1 – NFR-10 (Section 6.10) apply to the whole system.
 
@@ -235,7 +235,7 @@ STRING     := '"' characters '"'      (\" and \\ escape)
 
 **FR-23 (Syntax error)** A criterion that does not follow FR-16 shall be reported as `search syntax error: <reason>`, and the Current Result shall stay unchanged. In the full-screen interface, the typed criterion shall stay in the input field so that it can be corrected.
 
-*Verification of FR-17 – FR-23:* unit tests for search on the fixture of ACCEPTANCE §4; e2e search scripts.
+*Verification of FR-17 – FR-23:* unit tests in `tests/unit/test_search.py` on the shared six-PIR fixture (`tests/fixture.py`); e2e search scripts.
 
 ## 6.4 Printing (US8)
 

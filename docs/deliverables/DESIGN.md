@@ -337,7 +337,7 @@ This section records the decisions behind the design. Each has an id (ADR-0001 t
 
 ## 6.1 Language, platform, and libraries
 
-**ADR-0001 — Python, not Java.** The brief allows either. Python was chosen because the member writing most of the code is not fluent in Java, and a later switch would have meant rewriting the model, the tests, the manuals, and the diagrams together. Java maps more directly onto the brief's class-diagram and JUnit examples, but that is a documentation convenience, not a requirement. The `model` package, `unittest`, the standard-library rule, and MVC all work as well in Python.
+**ADR-0001 — Python, not Java.** The brief allows either. Python was chosen because it is the language the group knows best, and a later switch would have meant rewriting the model, the tests, the manuals, and the diagrams together. Java maps more directly onto the brief's class-diagram and JUnit examples, but that is a documentation convenience, not a requirement. The `model` package, `unittest`, the standard-library rule, and MVC all work as well in Python.
 
 **ADR-0004 — Standard library only, and no GUI.** The brief grades code on using only the standard library and gives no credit for a GUI. So the system has no pip dependency, no GUI window (no tkinter), and no third-party terminal library (Textual, Rich, prompt_toolkit, Click). The quality bar is still a *designed* terminal: visible structure, consistent keys, confirmation before destructive actions, and readable errors. ADR-0018 says how that terminal is drawn.
 
@@ -355,7 +355,7 @@ This section records the decisions behind the design. Each has an id (ADR-0001 t
 
 ## 6.3 Data and rules
 
-**ADR-0003 — A PIM File holds UTF-8 JSON.** The brief fixes only the `.pim` extension. The standard `json` module makes the file readable, documentable (ARCHITECTURE §5 and SRS FR-31), and easy to test. YAML would need a third-party parser. `pickle` is opaque, fragile across versions, and unsafe to load from an untrusted file. A custom text format would be extra parser work for no extra marks.
+**ADR-0003 — A PIM File holds UTF-8 JSON.** The brief fixes only the `.pim` extension. The standard `json` module makes the file readable, documentable (SRS FR-31), and easy to test. YAML would need a third-party parser. `pickle` is opaque, fragile across versions, and unsafe to load from an untrusted file. A custom text format would be extra parser work for no extra marks.
 
 **ADR-0015 — Save and load require the `.pim` extension.** `save` appends `.pim` when the user omits it. `load` rejects any other extension before reading the file. Saving to the Bound File overwrites it without asking; saving as another existing file asks first. This is the extension the brief names. The content inside is still JSON (ADR-0003).
 
