@@ -27,7 +27,7 @@ A single-user terminal PIM. The user manages Notes, Tasks, Events, and Contacts 
 model/          # required package name; the unit-test surface
 view/           # designed terminal UI and in-process Alarm Alerts
 controller/     # one user action → model.PIM
-pim.py          # composition root: python pim.py
+pim.py          # composition root: python3 pim.py
 tests/unit/     # model (100% lines) + controller + view
 tests/integration/
 tests/e2e/
@@ -37,7 +37,7 @@ CONTEXT.md
 README.md
 ```
 
-Run with `python pim.py`. Tests: `python -m unittest`. Coverage: `python coverage_report.py` (must be 100% of `model/`). Enable the commit gate: `git config core.hooksPath hooks`. See [`DEVELOPER.md`](DEVELOPER.md) and [`USER.md`](USER.md). Story coverage: [`REQUIREMENTS.md`](REQUIREMENTS.md).
+Run with `python3 pim.py`. Tests: `python3 -m unittest`. Coverage: `python3 coverage_report.py` (must be 100% of `model/`). Enable the commit gate: `git config core.hooksPath hooks`. See [`DEVELOPER.md`](DEVELOPER.md) and [`USER.md`](USER.md). Story coverage: [`REQUIREMENTS.md`](REQUIREMENTS.md).
 
 ## Constraints that affect every commit
 

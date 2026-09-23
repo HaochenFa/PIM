@@ -2,7 +2,7 @@
 
 A single-user terminal Personal Information Manager. Four PIR types: Note, Task, Event, Contact. Files use the extension `.pim` (UTF-8 JSON). Default timezone is Hong Kong Time (`Asia/Hong_Kong`).
 
-Start: `python pim.py`
+Start: `python3 pim.py`
 
 On an interactive terminal this opens a full-screen UI (Python's standard `curses` library). Redirected input, tests, or `PIM_NO_CURSES=1` keep a line-oriented layout with the same commands.
 
@@ -115,7 +115,21 @@ Relative: at start (`amount` 0) or N minutes/hours/days/weeks **before** start. 
 
 ## Errors
 
-Invalid input does not change your data, does not print a traceback, and does not exit. The status line names the problem (missing field, bad Id, bad datetime, bad search syntax, wrong extension, no selection, attempt to change type).
+Invalid input does not change your data, does not print a traceback, and does not exit. The status line names the problem (missing field, bad Id, bad datetime, bad search syntax, wrong extension, no selection, attempt to change type). Some messages you may see:
+
+| Status line | Meaning |
+|---|---|
+| `text is required` (or `description`, `start`, `name`) | A required field was left empty. |
+| `invalid datetime: …` | The value is not ISO 8601 or `YYYY-MM-DD HH:MM`. |
+| `datetime out of range` | The instant cannot be shown in Hong Kong Time (beyond year 1–9999). |
+| `alarm time is out of range` | A relative alarm would fall before year 1 (for example a huge number of weeks). |
+| `relative alarm amount must be an integer` | Enter a whole number such as `15`, not `1.5`. |
+| `search syntax error: …` | The criterion could not be parsed; Current Result is unchanged. |
+| `path must have a .pim extension` | `load` only opens `.pim` files. |
+| `file name is required` | `save as` / `load` was given an empty path or only `.pim`. |
+| `not a PIM file: …` | The file is not valid UTF-8 pim/v1 JSON; your data in memory is unchanged. |
+| `cannot save <file>.pim: <reason>` | The operating system refused the write (for example permission denied); your changes stay unsaved. |
+| `command failed` | An unexpected internal error; the command did nothing and the program keeps running. |
 
 ## Examples
 

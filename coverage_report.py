@@ -23,6 +23,15 @@ ROOT = Path(__file__).resolve().parent
 MODEL = ROOT / "model"
 UNIT = ROOT / "tests" / "unit"
 
+# Printed at the top of coverage.txt so a reader knows how "100%" was measured.
+METHOD = [
+    "Method: the standard-library `trace` module runs every test in tests/unit",
+    "and records which lines of model/ executed. A line is countable when an AST",
+    "statement starts on it; docstrings, comments, blank lines, and continuation",
+    "lines of a multi-line statement are not counted. model/__init__.py holds",
+    "re-exports only and is excluded. Third-party coverage.py is not used.",
+]
+
 
 def main() -> int:
     """Run unit tests under `trace` and report model/ line coverage."""
@@ -46,7 +55,7 @@ def main() -> int:
     for (filename, lineno), n in tracer.results().counts.items():
         counts[str(Path(filename).resolve())][lineno] = n
 
-    lines = ["Line coverage for model/ (stdlib trace, tests/unit)", ""]
+    lines = ["Line coverage for model/ (stdlib trace, tests/unit)", "", *METHOD, ""]
     grand_hit = grand_total = 0
     for path in sorted(MODEL.glob("*.py")):
         if path.name == "__init__.py":
