@@ -586,6 +586,9 @@ class CursesUI:
             self.term._status(message_for(exc), "err")
         except OSError as exc:
             self.term._status(message_for(exc), "err")
+        except Exception as exc:
+            # Last resort, as in the line loop: fail the command, keep the session.
+            self.term._status(message_for(exc), "err")
 
     def _handle_key(self, ch) -> None:
         if ch == curses.KEY_RESIZE:

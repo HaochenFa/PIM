@@ -128,6 +128,10 @@ class Terminal:
                     self._status(message_for(exc), STATUS_ERR)
                 except OSError as exc:
                     self._status(message_for(exc), STATUS_ERR)
+                except Exception as exc:
+                    # Last resort: the model should already raise PIMError. An
+                    # unexpected bug must still fail one command, not exit the app.
+                    self._status(message_for(exc), STATUS_ERR)
                 self._paint(force=True)
             except KeyboardInterrupt:
                 # SIGINT is quit, not a silent drop of unsaved changes.

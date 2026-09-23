@@ -445,6 +445,23 @@ class SaveLoadQuitTests(unittest.TestCase):
         self.assertEqual(term.dismissed, set())
 
 
+class UnexpectedErrorTests(unittest.TestCase):
+    """A non-domain exception fails one command; the line loop keeps running."""
+
+    def test_line_loop_reports_unexpected_error_and_continues(self):
+        """RuntimeError from App.save becomes `command failed`; the next command still runs."""
+        app = FakeApp()
+        app.save_raises = RuntimeError("boom")
+        stdout = io.StringIO()
+        term = Terminal(app, stdin=io.StringIO("save as /tmp/x.pim\nhelp\nquit\n"), stdout=stdout)
+        term.run()
+        out = stdout.getvalue()
+        self.assertIn("command failed", out)
+        self.assertNotIn("Traceback", out)
+        self.assertNotIn("boom", out)
+        self.assertFalse(term._running)
+
+
 class LayoutAndPaintTests(unittest.TestCase):
     def test_layout_empty_untitled_and_menu(self):
         _app, term, _out = make_terminal()

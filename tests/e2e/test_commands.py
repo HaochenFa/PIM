@@ -229,16 +229,30 @@ class EventLoopErrorTests(unittest.TestCase):
         )
         self.assertIn("disk full", out)
 
-    def test_run_script_reraises_event_loop_crash(self):
+    def test_unexpected_command_error_is_status_not_crash(self):
+        """A RuntimeError inside a command shows `command failed`; the session continues."""
+
         class BoomSearch(App):
             def search(self, line):
                 raise RuntimeError("boom")
 
+        _app, term, out = run_script(
+            ["search type = note", "help", "quit"],
+            app=BoomSearch(PIM()),
+        )
+        self.assertIn("command failed", out)
+        self.assertIn(HELP, out)
+        self.assertFalse(term._running)
+
+    def test_run_script_reraises_event_loop_crash(self):
+        """The harness surfaces a crash outside command handling (here: painting alarms)."""
+
+        class BoomDue(App):
+            def due_alarms(self, now):
+                raise RuntimeError("boom")
+
         with self.assertRaises(RuntimeError):
-            run_script(
-                ["search type = note", "quit"],
-                app=BoomSearch(PIM()),
-            )
+            run_script(["quit"], app=BoomDue(PIM()))
 
 
 if __name__ == "__main__":

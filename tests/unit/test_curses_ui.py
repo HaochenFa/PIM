@@ -96,3 +96,15 @@ class CursesHelperTests(unittest.TestCase):
         ui._escape()
         self.assertTrue(term._running)
         self.assertNotIn(("clear",), app.calls)
+
+    def test_safe_turns_unexpected_error_into_status(self):
+        """CursesUI._safe reports a RuntimeError as `command failed` instead of raising."""
+        app, term, _out = make_terminal()
+        ui = CursesUI(term, object())
+
+        def boom():
+            raise RuntimeError("boom")
+
+        ui._safe(boom)
+        self.assertEqual(app.status, "command failed")
+        self.assertEqual(app.status_kind, "err")
