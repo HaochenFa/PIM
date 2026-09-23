@@ -52,6 +52,7 @@ view/
   theme.py             # named colour roles (256 / 8 / mono)
   layout.py            # shared screen model (curses and line UI)
   widgets.py           # selectors and calendar
+  file_browser.py      # folder browser for load / save-as paths
   stdin_reader.py      # non-TTY: puts one line string on a Queue
 controller/
   __init__.py

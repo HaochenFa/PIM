@@ -107,7 +107,7 @@ Rules:
 
 - A Working Collection has at most one Bound File.
 - The extension must be `.pim`. Save appends it if omitted. Load rejects any other extension.
-- The user chooses where the file goes by typing its path at the prompt (the command-line equivalent of a file dialog). A path may be absolute, start with `~` for the home folder, or be relative to the folder the PIM was started from. After a save or load, the status line names the absolute path.
+- The user chooses where the file goes, or which file to open, with a folder browser on the TTY, or by typing its path (always possible, and the only way in the line UI). A typed path may be absolute, start with `~` for the home folder, or be relative to the folder the PIM was started from. After a save or load, the status line names the absolute path. There is no GUI file dialog (ADR-0019).
 - Bytes are UTF-8 JSON (schema in the architecture document).
 - `save` writes the Bound File without confirmation. `save as` onto an existing path requires confirmation. With no Bound File, `save` is `save as`.
 - `load` replaces the Working Collection and the Bound File. If the collection is dirty, the user must save / discard / cancel; modifications must not be dropped silently. The same rule applies on quit.
@@ -120,7 +120,7 @@ Designed terminal UI (stdlib `curses` on an interactive TTY; line-oriented layou
 2. Alarm Alert banner (dismissible)
 3. Current Result table: Id / type pin / Display Name / relevant time
 4. Detail of the selection
-5. Menu + prompt (selectors and a calendar for closed answers; one criterion line for search)
+5. Menu + prompt (selectors and a calendar for closed answers; a folder browser for load and save-as paths; one criterion line for search)
 
 Letter keys and arrows are accelerators for the same verb commands. They do not replace prompted create/modify or the criterion grammar.
 
@@ -132,7 +132,7 @@ Letter keys and arrows are accelerators for the same verb commands. They do not 
 | Modify US6 | Select first; empty enter keeps that field |
 | Print US8 | Print the selection; `print all` prints every PIR in **Current Result** |
 | Delete US9 | Select first, confirm y/n |
-| Store/load US10–US11 | `save` / `save as` / `load` (keys `w` / `W` / `o`); each asks for a path when it needs one |
+| Store/load US10–US11 | `save` / `save as` / `load` (keys `w` / `W` / `o`); when a path is needed, the TTY opens a folder browser and the line UI asks for a typed path |
 
 Invalid input: **commands fail atomically** — Working Collection unchanged, no traceback, process stays up, one specific English error on the status line. Cases: unknown command, missing required field, empty body, bad Id, bad datetime, bad search syntax, not `.pim`, missing path, load while dirty, delete/modify/print-one with no selection, attempt to change type.
 
@@ -156,5 +156,6 @@ Invalid input: **commands fail atomically** — Working Collection unchanged, no
 | ADR-0014 | A failed command does not change data |
 | ADR-0015 | `.pim` extension is enforced |
 | ADR-0018 | Stdlib curses on a TTY; line UI for scripts and tests |
+| ADR-0019 | Folder browser for load / save-as paths on the TTY; typed paths stay; no GUI dialog |
 
 Glossary: `CONTEXT.md`. Do not use Name as a title, Label as identity, or Note as a field name.

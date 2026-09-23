@@ -245,7 +245,9 @@ The controller never raises: on failure it sets the status and returns `None` or
 | `None` | `run` | — | Starts `CursesUI` on a TTY, or else the line loop. Returns on quit. |
 | `list[DueAlarm]` | `visible_due` | — | Due alarms minus the dismissed ones. |
 | `None` | `render` | — | Draws the line-UI screen. |
-| `None` | `ask` | `prompt: str`, `handler`, `kind: str \| None = None`, `chooser = None`, `picker = None` | Queues a prompt; `handler(answer)` runs when the user answers. |
+| `None` | `ask` | `prompt: str`, `handler`, `kind: str \| None = None`, `chooser = None`, `picker = None`, `browser = None` | Queues a prompt; `handler(answer)` runs when the user answers. |
+| `FileBrowser \| None` | `current_browser` | — | The folder browser of the current load or save-as prompt, if any. |
+| `None` | `type_path_instead` | — | Drops the browser so the same prompt takes a typed path. |
 | `None` | `apply_accelerator` | `action: str` | Runs the command bound to a single key. |
 
 ### Class `CursesUI` (module `view.curses_ui`)
@@ -264,6 +266,7 @@ It has one public method, `loop() -> None`: the full-screen event loop (`get_wch
 |---|---|
 | `view.layout` | Builds the screen model: title, banner, list rows, detail, and menu. |
 | `view.widgets` | `Chooser` (a closed list of answers) and `DateTimePicker` (calendar and time). |
+| `view.file_browser` | `FileBrowser`: folders and `.pim` files for load and save-as paths. Returns a path string, so the prompt handler validates it like a typed path (ADR-0019). |
 | `view.keys` | Maps keys to actions (accelerators), e.g. `w` save, `W` save as, `o` load. |
 | `view.theme` | Colour roles for 256-colour, 8-colour, and monochrome terminals. |
 | `view.textwidth` | East-Asian-width-aware clipping and padding. |

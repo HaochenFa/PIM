@@ -9,13 +9,23 @@ classDiagram
         +run() None
         +render() None
         +visible_due() list~DueAlarm~
-        +ask(prompt, handler, kind, chooser, picker) None
+        +ask(prompt, handler, kind, chooser, picker, browser) None
+        +current_browser() FileBrowser
         +apply_accelerator(action) None
     }
     class CursesUI {
         +Terminal term
         +stdscr
         +loop() None
+    }
+    class FileBrowser {
+        +str mode
+        +Path cwd
+        +list~Entry~ entries
+        +int index
+        +move(delta) None
+        +go_up() None
+        +activate() str
     }
     class App {
         +PIM pim
@@ -45,4 +55,5 @@ classDiagram
     }
     Terminal --> App : calls
     CursesUI --> Terminal : drives on a TTY
+    Terminal --> FileBrowser : path prompts
     App --> PIM : calls
