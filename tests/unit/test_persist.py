@@ -96,6 +96,34 @@ class PersistTests(unittest.TestCase):
             pim.load(path, force=True)
         self.assertEqual(len(pim.all()), 6)
 
+    def test_file_with_non_list_alarms_does_not_load(self):
+        """A3 via file: `"alarms": 5` is a FileFormatError, not a TypeError; memory survives."""
+        pim = make_fixture()
+        path = self.dir / "alarms.pim"
+        event = {
+            "id": 1,
+            "type": "event",
+            "description": "bad",
+            "start": "2026-09-14T18:30:00+08:00",
+            "alarms": 5,
+        }
+        path.write_text(
+            json.dumps({"format": "pim/v1", "next_id": 2, "pirs": [event]}), encoding="utf-8"
+        )
+        with self.assertRaises(FileFormatError):
+            pim.load(path, force=True)
+        self.assertEqual(len(pim.all()), 6)
+
+    def test_non_utf8_file_does_not_load(self):
+        """A4: bytes that are not UTF-8 raise FileFormatError, not UnicodeDecodeError; memory survives."""
+        pim = make_fixture()
+        path = self.dir / "latin1.pim"
+        path.write_bytes(b'{"format": "pim/v1", "next_id": 1, "pirs": [], "x": "\xff\xfe"}')
+        with self.assertRaises(FileFormatError) as ctx:
+            pim.load(path, force=True)
+        self.assertEqual(ctx.exception.status_message(), "not a PIM file: file is not UTF-8 text")
+        self.assertEqual(len(pim.all()), 6)
+
     def test_load_while_dirty_without_force_fails(self):
         pim = make_fixture()
         path = self.dir / "ok.pim"

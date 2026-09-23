@@ -3,6 +3,6 @@ Line coverage for model/ (stdlib trace, tests/unit)
 criterion.py: 247/247 lines (100.0%)
 pim.py: 89/89 lines (100.0%)
 pimfile.py: 75/75 lines (100.0%)
-pir.py: 349/349 lines (100.0%)
+pir.py: 357/357 lines (100.0%)
 
-TOTAL model/: 760/760 lines (100.0%)
+TOTAL model/: 768/768 lines (100.0%)

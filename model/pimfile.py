@@ -73,6 +73,9 @@ def read_pim_file(path) -> tuple[int, list[PIR]]:
             payload = json.load(handle)
     except json.JSONDecodeError as exc:
         raise FileFormatError("file is not valid JSON") from exc
+    except UnicodeDecodeError as exc:
+        # A ValueError, not an OSError: without this branch it escapes as a traceback.
+        raise FileFormatError("file is not UTF-8 text") from exc
     except OSError as exc:
         raise FileFormatError(f"cannot read file: {exc}") from exc
     if not isinstance(payload, dict):

@@ -249,6 +249,18 @@ class EventTests(unittest.TestCase):
         )
         self.assertEqual(armed.display_field("alarms"), "1 alarm(s)")
 
+    def test_alarms_must_be_a_list(self):
+        """A3: alarms given as a number or a string raise ValidationError, on create and modify."""
+        with self.assertRaises(ValidationError) as ctx:
+            Event(1, "lecture", "2026-09-14T18:30:00+08:00", 5)
+        self.assertEqual(ctx.exception.status_message(), "alarms must be a list")
+        with self.assertRaises(ValidationError):
+            Event(1, "lecture", "2026-09-14T18:30:00+08:00", "none")
+        event = Event(1, "lecture", "2026-09-14T18:30:00+08:00")
+        with self.assertRaises(ValidationError):
+            event.modify({"alarms": 5})
+        self.assertEqual(event.alarms, [])
+
     def test_modify_replaces_or_clears_alarms(self):
         event = Event(7, "plain", "2026-09-14T18:30:00+08:00")
         event.modify({"alarms": None})

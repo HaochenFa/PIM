@@ -157,6 +157,15 @@ def parse_alarm(spec) -> RelativeAlarm | AbsoluteAlarm:
     raise ValidationError("alarm kind must be relative or absolute")
 
 
+def parse_alarms(specs) -> list[RelativeAlarm | AbsoluteAlarm]:
+    """Build an alarm list. None means no alarms; any non-list value is a ValidationError."""
+    if specs is None:
+        return []
+    if not isinstance(specs, (list, tuple)):
+        raise ValidationError("alarms must be a list")
+    return [parse_alarm(item) for item in specs]
+
+
 class RelativeAlarm:
     """Alarm at start, or N units before start. Effective time moves when start changes."""
 
@@ -412,7 +421,7 @@ class Event(PIR):
         super().__init__(pir_id)
         self.description = require_text(description, "description")
         self.start = parse_datetime(start)
-        self.alarms = [parse_alarm(item) for item in (alarms or [])]
+        self.alarms = parse_alarms(alarms)
         # Reject at entry so due_alarms, print, and search never meet an overflow.
         check_alarm_times(self.start, self.alarms)
 
@@ -451,10 +460,7 @@ class Event(PIR):
         if "start" in fields:
             new_start = parse_datetime(fields["start"])
         if "alarms" in fields:
-            if fields["alarms"] is None:
-                new_alarms = []
-            else:
-                new_alarms = [parse_alarm(item) for item in fields["alarms"]]
+            new_alarms = parse_alarms(fields["alarms"])
         # Validate against the new start before any attribute changes (atomic modify).
         check_alarm_times(new_start, new_alarms)
         self.description = new_description
