@@ -1,4 +1,4 @@
-"""ACCEPTANCE.md section 6 demo script as a scripted terminal session."""
+"""The demo script in docs/BACKLOG.md as a scripted terminal session."""
 
 from __future__ import annotations
 
