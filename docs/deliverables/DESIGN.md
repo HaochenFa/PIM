@@ -316,7 +316,7 @@ The diagram shows the main design points of the system:
 **Extendibility.**
 
 - *A new criterion* is a new `Criterion` subclass plus one parser branch.
-- *A new PIR type* is a `PIR` subclass with its `FIELDS`, one branch in `pir_from_json`, and one `create_*` method. The View's prompts are generated from `FIELDS`.
+- *A new PIR type* is a `PIR` subclass with its `FIELDS`, plus its registrations: the type name in `TYPE_NAMES` and `pir_class`, one branch in `pir_from_json`, one `PIM.create_*` method, and one entry in the controller's `_CREATE` table. The View's prompts are generated from `FIELDS`, so the View does not change.
 - *A new front end* can reuse `App` unchanged.
 
 **Justifiability.** Each non-obvious choice has a decision record in `docs/adr/`, for example:

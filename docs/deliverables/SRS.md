@@ -170,7 +170,7 @@ The system follows the **Model–View–Controller** (MVC) pattern, with one Pyt
 - A value without an offset shall be taken as Hong Kong Time.
 - Seconds shall be dropped, because the system works to the minute.
 - A value that cannot be parsed shall be rejected with `invalid datetime: <value>`.
-- A value that cannot be shown in HKT, such as `9999-12-31T23:59-10:00`, shall be rejected with `datetime out of range`.
+- A value that cannot be expressed in both HKT and UTC within years 1–9999, such as `9999-12-31T23:59-10:00` or `0001-01-01 00:10`, shall be rejected with `datetime out of range`, so that every saved value can be loaded back (FR-35).
 
 On a TTY, the full-screen interface shall also offer a calendar picker.
 *Verification:* unit tests for date-time parsing.

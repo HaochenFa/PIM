@@ -121,7 +121,7 @@ Invalid input does not change your data, does not print a traceback, and does no
 |---|---|
 | `text is required` (or `description`, `start`, `name`) | A required field was left empty. |
 | `invalid datetime: …` | The value is not ISO 8601 or `YYYY-MM-DD HH:MM`. |
-| `datetime out of range` | The instant cannot be shown in Hong Kong Time (beyond year 1–9999). |
+| `datetime out of range` | The instant falls outside years 1–9999 in Hong Kong Time or UTC (for example `0001-01-01 00:10`). |
 | `alarm time is out of range` | A relative alarm would fall before year 1 (for example a huge number of weeks). |
 | `relative alarm amount must be an integer` | Enter a whole number such as `15`, not `1.5`. |
 | `search syntax error: …` | The criterion could not be parsed; Current Result is unchanged. |
