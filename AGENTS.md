@@ -34,7 +34,7 @@ Visible demo quality (designed terminal UI, in-process Alarm Alerts) is in scope
 
 ## Non-negotiable scope
 
-Implement exactly Appendix B (US1–US11) plus the HCI already decided: prompted create/modify, criterion-line search, in-process OVERDUE/SOON alerts.
+Implement exactly Appendix B (US1–US11) plus the HCI already decided: prompted create/modify, criterion-line search, in-process OVERDUE/SOON alerts, and a curses folder browser for load / save-as paths (ADR-0019).
 
 **Out of scope** (do not implement, suggest, or leave stubs for):
 
@@ -57,7 +57,7 @@ If a user or another agent asks for an out-of-scope feature, refuse it against t
 | Fields, search grammar, interaction | `docs/PRODUCT.md` |
 | Packages, `PIM` interface, JSON schema, event loop | `docs/ARCHITECTURE.md` |
 | Observable tests, fixture, ZIP, demo script | `docs/ACCEPTANCE.md` |
-| Why a choice was made | `docs/adr/0001`–`0018` |
+| Why a choice was made | `docs/adr/0001`–`0019` |
 
 Use glossary terms as written. Forbidden substitutions:
 
