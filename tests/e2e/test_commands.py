@@ -146,6 +146,28 @@ class WizardErrorTests(unittest.TestCase):
         self.assertIn("enter relative or absolute", out)
         self.assertEqual(len(app.pim.get(1).alarms), 1)
 
+    def test_overflowing_relative_alarm_fails_create_and_session_continues(self):
+        """A1 repro: 999999999 weeks before start is a status-line error, not a crash."""
+        app, term, out = run_script(
+            [
+                "create event",
+                "overflow",
+                "2026-09-14T18:30:00+08:00",
+                "y",
+                "relative",
+                "999999999",
+                "week",
+                "n",
+                "create note",
+                "still alive",
+                "quit",
+                "discard",
+            ]
+        )
+        self.assertIn("alarm time is out of range", out)
+        self.assertEqual([pir.type_name for pir in app.pim.all()], ["note"])
+        self.assertFalse(term._running)
+
     def test_replace_alarms_yes_replaces_list(self):
         app, _term, _out = run_script(
             [

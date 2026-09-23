@@ -78,6 +78,24 @@ class PersistTests(unittest.TestCase):
             pim.load(path, force=True)
         self.assertEqual(len(pim.all()), 6)
 
+    def test_file_event_with_overflowing_alarm_does_not_load(self):
+        """A1 via file: an Event whose relative alarm overflows is a FileFormatError; memory survives."""
+        pim = make_fixture()
+        path = self.dir / "overflow.pim"
+        event = {
+            "id": 1,
+            "type": "event",
+            "description": "bad",
+            "start": "2026-09-14T18:30:00+08:00",
+            "alarms": [{"kind": "relative", "amount": 999999999, "unit": "week"}],
+        }
+        path.write_text(
+            json.dumps({"format": "pim/v1", "next_id": 2, "pirs": [event]}), encoding="utf-8"
+        )
+        with self.assertRaises(FileFormatError):
+            pim.load(path, force=True)
+        self.assertEqual(len(pim.all()), 6)
+
     def test_load_while_dirty_without_force_fails(self):
         pim = make_fixture()
         path = self.dir / "ok.pim"

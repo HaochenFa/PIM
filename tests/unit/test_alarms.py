@@ -2,7 +2,14 @@
 
 import unittest
 
-from model import AbsoluteAlarm, PIM, RelativeAlarm, ValidationError, parse_datetime
+from model import (
+    AbsoluteAlarm,
+    PIM,
+    RelativeAlarm,
+    ValidationError,
+    parse_criterion,
+    parse_datetime,
+)
 from model.pir import parse_alarm
 from tests.fixture import make_fixture
 
@@ -95,6 +102,50 @@ class AlarmSpecTests(unittest.TestCase):
     def test_kind_label_for_at_start_and_plural_units(self):
         self.assertEqual(RelativeAlarm(0, "minute").kind_label(), "relative at start")
         self.assertIn("days", RelativeAlarm(2, "day").kind_label())
+
+
+class AlarmRangeTests(unittest.TestCase):
+    """An Event whose Effective Alarm Time would overflow is rejected atomically."""
+
+    def test_huge_relative_amount_fails_create_without_mutation(self):
+        """A1: 999999999 weeks before start overflows; create raises and nothing is inserted."""
+        pim = PIM()
+        with self.assertRaises(ValidationError) as ctx:
+            pim.create_event(
+                "overflow", "2026-09-14T18:30:00+08:00", [RelativeAlarm(999999999, "week")]
+            )
+        self.assertEqual(ctx.exception.status_message(), "alarm time is out of range")
+        self.assertEqual(pim.all(), [])
+        self.assertFalse(pim.is_dirty())
+        self.assertEqual(pim.create_note("next").id, 1)
+
+    def test_relative_alarm_before_year_one_fails_create(self):
+        """A2: 1 day before 0001-01-01 00:10 is out of range; create raises ValidationError."""
+        pim = PIM()
+        with self.assertRaises(ValidationError):
+            pim.create_event("ancient", "0001-01-01 00:10", [RelativeAlarm(1, "day")])
+        self.assertEqual(pim.all(), [])
+
+    def test_modify_start_that_pushes_alarm_out_of_range_is_atomic(self):
+        """Moving start to year 1 under a 1-day relative alarm fails; the Event is unchanged."""
+        pim = PIM()
+        event = pim.create_event(
+            "lecture", "2026-09-14T18:30:00+08:00", [RelativeAlarm(1, "day")]
+        )
+        before = event.to_json()
+        with self.assertRaises(ValidationError):
+            pim.modify(event.id, {"start": "0001-01-01 00:10"})
+        self.assertEqual(pim.get(event.id).to_json(), before)
+
+    def test_in_range_event_keeps_search_and_due_alarms_working(self):
+        """After a rejected overflow, due_alarms and alarm search still run on the collection."""
+        pim = PIM()
+        pim.create_event("ok", "2026-09-14T18:30:00+08:00", [RelativeAlarm(0, "minute")])
+        with self.assertRaises(ValidationError):
+            pim.create_event("bad", "0001-01-01 00:10", [RelativeAlarm(1, "day")])
+        now = parse_datetime("2026-09-14T18:30:00+08:00")
+        self.assertEqual([item.event_id for item in pim.due_alarms(now)], [1])
+        self.assertEqual(len(pim.search(parse_criterion("alarm < 2027-01-01"))), 1)
 
 
 if __name__ == "__main__":

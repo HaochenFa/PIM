@@ -212,6 +212,19 @@ class AbsoluteAlarm:
         return "absolute"
 
 
+def check_alarm_times(start: datetime, alarms: list) -> None:
+    """Raise ValidationError if any Effective Alarm Time falls outside the datetime range.
+
+    A huge relative amount, or a start near year 1, makes `start - duration`
+    overflow; the Event must then be rejected rather than stored.
+    """
+    for alarm in alarms:
+        try:
+            alarm.effective(start)
+        except OverflowError as exc:
+            raise ValidationError("alarm time is out of range") from exc
+
+
 class DueAlarm:
     """One OVERDUE or SOON alarm at an injected `now`. `key` is (event Id, alarm index)."""
 
@@ -400,6 +413,8 @@ class Event(PIR):
         self.description = require_text(description, "description")
         self.start = parse_datetime(start)
         self.alarms = [parse_alarm(item) for item in (alarms or [])]
+        # Reject at entry so due_alarms, print, and search never meet an overflow.
+        check_alarm_times(self.start, self.alarms)
 
     @property
     def display_name(self) -> str:
@@ -440,6 +455,8 @@ class Event(PIR):
                 new_alarms = []
             else:
                 new_alarms = [parse_alarm(item) for item in fields["alarms"]]
+        # Validate against the new start before any attribute changes (atomic modify).
+        check_alarm_times(new_start, new_alarms)
         self.description = new_description
         self.start = new_start
         self.alarms = new_alarms
