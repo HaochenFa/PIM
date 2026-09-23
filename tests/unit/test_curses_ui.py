@@ -1,5 +1,6 @@
 """curses UI helpers that do not need a real TTY."""
 
+import curses
 import unittest
 
 from view.curses_ui import CursesUI
@@ -108,3 +109,164 @@ class CursesHelperTests(unittest.TestCase):
         ui._safe(boom)
         self.assertEqual(app.status, "command failed")
         self.assertEqual(app.status_kind, "err")
+
+
+class FakeScreen:
+    """Just enough of a curses window for the snapshot and composer height."""
+
+    def getmaxyx(self):
+        return (30, 100)
+
+
+class BrowserKeyTests(unittest.TestCase):
+    """Folder browser keys in the full-screen UI: every answer reaches the prompt as a path."""
+
+    def setUp(self):
+        import os
+        import tempfile
+
+        self.tmpdir = tempfile.TemporaryDirectory()
+        self.dir = os.path.realpath(self.tmpdir.name)
+        os.mkdir(os.path.join(self.dir, "courses"))
+        with open(os.path.join(self.dir, "courses", "comp.pim"), "w", encoding="utf-8") as handle:
+            handle.write("{}")
+        with open(os.path.join(self.dir, "work.pim"), "w", encoding="utf-8") as handle:
+            handle.write("{}")
+        self.app, self.term, _out = make_terminal()
+        self.app._bound = os.path.join(self.dir, "work.pim")
+        self.ui = CursesUI(self.term, FakeScreen())
+
+    def tearDown(self):
+        self.tmpdir.cleanup()
+
+    def path(self, *parts):
+        import os
+
+        return os.path.join(self.dir, *parts)
+
+    def labels(self):
+        return [entry.label() for entry in self.term.current_browser().entries]
+
+    def test_enter_opens_a_folder_then_loads_a_pim_file(self):
+        """`o`, down to `courses/`, Enter, down to `comp.pim`, Enter → load that absolute path."""
+        self.term.apply_accelerator("load")
+        self.assertEqual(self.labels(), ["../", "courses/", "work.pim"])
+        self.ui._handle_browser_key("j")
+        self.ui._handle_browser_key("\n")
+        self.assertEqual(self.labels(), ["../", "comp.pim"])
+        self.ui._handle_browser_key(curses.KEY_DOWN)
+        self.ui._handle_browser_key("\n")
+        self.assertEqual(self.app.calls[-1], ("load", self.path("courses", "comp.pim"), False))
+        self.assertIsNone(self.term.current_browser())
+
+    def test_backspace_and_left_go_up_right_opens(self):
+        """⌫ / ← go to the parent folder; → opens the highlighted folder."""
+        self.term.apply_accelerator("load")
+        self.ui._handle_browser_key("j")
+        self.ui._handle_browser_key(curses.KEY_RIGHT)
+        self.assertEqual(str(self.term.current_browser().cwd), self.path("courses"))
+        self.ui._handle_browser_key("\x7f")
+        self.assertEqual(str(self.term.current_browser().cwd), self.dir)
+        self.assertEqual(self.term.current_browser().current().label(), "courses/")
+        self.ui._handle_browser_key("j")
+        self.ui._handle_browser_key("l")
+        self.assertEqual(str(self.term.current_browser().cwd), self.dir)
+        self.ui._handle_browser_key(curses.KEY_LEFT)
+        self.assertNotEqual(str(self.term.current_browser().cwd), self.dir)
+
+    def test_navigation_keys_move_the_highlight(self):
+        """k/j, PgUp/PgDn, Home/End, g/G move within the list and are consumed."""
+        self.term.apply_accelerator("load")
+        browser = self.term.current_browser()
+        for key, expected in (
+            ("G", 2),
+            ("k", 1),
+            (curses.KEY_UP, 0),
+            (curses.KEY_NPAGE, 2),
+            (curses.KEY_PPAGE, 0),
+            (curses.KEY_END, 2),
+            (curses.KEY_HOME, 0),
+            ("g", 0),
+        ):
+            self.assertTrue(self.ui._handle_browser_key(key))
+            self.assertEqual(browser.index, expected, key)
+        self.assertTrue(self.ui._handle_browser_key("z"))
+
+    def test_slash_and_tab_switch_to_the_typed_field(self):
+        """`/` starts an absolute path; Tab pre-fills the current folder; the prompt stays."""
+        import os
+
+        self.term.apply_accelerator("load")
+        self.ui._handle_browser_key("/")
+        self.assertIsNone(self.term.current_browser())
+        self.assertEqual(self.ui.buffer, "/")
+        self.assertEqual(self.term._prompt_label(), "load path: ")
+        self.term.cancel_prompt()
+        self.term.apply_accelerator("load")
+        self.ui._handle_browser_key("\t")
+        self.assertEqual(self.ui.buffer, self.dir + os.sep)
+        self.assertEqual(self.ui.cursor, len(self.ui.buffer))
+
+    def test_tilde_opens_home(self):
+        """`~` jumps the browser to the home folder."""
+        from unittest.mock import patch
+
+        self.term.apply_accelerator("load")
+        with patch.dict("os.environ", {"HOME": self.path("courses")}):
+            self.ui._handle_browser_key("~")
+        self.assertEqual(str(self.term.current_browser().cwd), self.path("courses"))
+
+    def test_save_new_file_row_types_a_name_in_this_folder(self):
+        """`W`, Enter on "new file here", type a name, Enter → save as <folder>/<name>."""
+        self.term.apply_accelerator("save_as")
+        self.assertEqual(self.labels()[0], "+ New file in this folder…")
+        self.ui._handle_browser_key("\n")
+        self.assertIsNone(self.term.current_browser())
+        for ch in "demo":
+            self.ui._edit(ch)
+        self.ui._submit()
+        self.assertEqual(self.app.calls[-1], ("save", self.path("demo")))
+
+    def test_save_on_an_existing_file_asks_to_overwrite(self):
+        """Enter on an existing `.pim` in the save browser goes through the overwrite check."""
+        self.app.would_overwrite = lambda path: True
+        self.app.save_target = lambda path: path
+        self.term.apply_accelerator("save_as")
+        self.ui._handle_browser_key("G")
+        self.ui._handle_browser_key("\n")
+        self.assertIn("overwrite", self.term._prompt_label())
+
+    def test_escape_cancels_the_browser_prompt(self):
+        """Esc in the browser cancels the load; nothing is loaded."""
+        self.term.apply_accelerator("load")
+        self.assertTrue(self.ui._handle_browser_key("\x1b"))
+        self.assertIsNone(self.term.current_browser())
+        self.assertEqual(self.app.status, "command cancelled")
+        self.assertNotIn("load", [call[0] for call in self.app.calls])
+
+    def test_browser_key_without_a_browser_is_not_consumed(self):
+        """With no browser open, the handler leaves the key to the rest of the UI."""
+        self.assertFalse(self.ui._handle_browser_key("j"))
+
+    def test_handle_key_routes_to_the_browser(self):
+        """The main key handler sends keys to the browser before the text field."""
+        self.term.apply_accelerator("load")
+        self.ui._handle_key("j")
+        self.assertEqual(self.term.current_browser().index, 1)
+        self.assertEqual(self.ui.buffer, "")
+
+    def test_snapshot_and_composer_follow_the_browser(self):
+        """A browser move changes the redraw snapshot; the composer is three rows."""
+        self.term.apply_accelerator("load")
+        before = self.ui._snapshot()
+        self.ui._handle_browser_key("j")
+        self.assertNotEqual(before, self.ui._snapshot())
+        self.assertEqual(self.ui._composer_h(), 3)
+
+    def test_ctrl_u_clears_to_the_start_of_the_field(self):
+        """Ctrl-U deletes everything before the caret, e.g. a pre-filled folder."""
+        self.ui.buffer = "/Users/you/work"
+        self.ui.cursor = 11
+        self.ui._edit("\x15")
+        self.assertEqual(self.ui.buffer, "work")
+        self.assertEqual(self.ui.cursor, 0)

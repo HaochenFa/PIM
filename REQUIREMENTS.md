@@ -17,7 +17,7 @@ This report lists which Appendix B user stories, and which requirements in the S
 | US9 | FR-27, FR-28 | Delete with confirmation; Ids never reused | implemented | `test_pim.py`, `test_persist.py` |
 | US10 | FR-29 – FR-33 | Store to `.pim` (UTF-8 JSON, atomic write, `.pim` appended, `~` expanded, absolute path in status, overwrite confirm, OS errors reported) | implemented | `test_persist.py`, `test_app.py`, `tests/integration/test_app.py` |
 | US11 | FR-34 – FR-37 | Load from `.pim` (other extensions rejected, `~` expanded, corrupt file keeps memory, dirty load asks) | implemented | `test_persist.py`, `test_app.py`, `tests/e2e/` |
-| — (UI) | FR-38, FR-39 | Command vocabulary and accelerators (`w` / `W` / `o` for save / save as / load); screen layout; row vs Id selection | implemented | `tests/unit/test_terminal.py`, `tests/unit/test_keys.py`, `tests/e2e/` |
+| — (UI) | FR-38, FR-38a, FR-39 | Command vocabulary and accelerators (`w` / `W` / `o` for save / save as / load); folder browser for load and save-as paths; screen layout; row vs Id selection | implemented | `tests/unit/test_terminal.py`, `tests/unit/test_keys.py`, `tests/unit/test_file_browser.py`, `tests/unit/test_curses_ui.py`, `tests/e2e/` |
 | — (derived from US4) | FR-40 – FR-42 | In-process OVERDUE / SOON Alarm Alert; dismiss in memory only | implemented | `test_alarms.py`, `tests/e2e/test_alerts.py` |
 
 ## Non-functional requirements

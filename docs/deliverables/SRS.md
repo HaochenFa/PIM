@@ -252,7 +252,7 @@ STRING     := '"' characters '"'      (\" and \\ escape)
 
 ## 6.6 Storing (US10)
 
-**FR-29** `save as <path>` shall write the Working Collection to `<path>`, appending `.pim` when the path does not already end in `.pim`. The path then becomes the Bound File. `save` shall write to the Bound File without asking, or behave as `save as` when there is none. The user chooses the folder by typing the path: it may be absolute, begin with `~` for the home folder, or be relative to the folder the system was started from. This typed path is the command-line counterpart of a file dialog. After a successful save, the status line shall name the absolute path that was written.
+**FR-29** `save as <path>` shall write the Working Collection to `<path>`, appending `.pim` when the path does not already end in `.pim`. The path then becomes the Bound File. `save` shall write to the Bound File without asking, or behave as `save as` when there is none. A typed path may be absolute, begin with `~` for the home folder, or be relative to the folder the system was started from. On a TTY, `save as` without a path shall open a folder browser (FR-38a); the line UI shall ask for a typed path. After a successful save, the status line shall name the absolute path that was written.
 
 **FR-30** If `save as` would replace an existing file that is not the Bound File, the system shall ask for confirmation.
 
@@ -266,7 +266,7 @@ STRING     := '"' characters '"'      (\" and \\ escape)
 
 ## 6.7 Loading (US11)
 
-**FR-34** `load <path>` shall accept only a path ending in `.pim`; any other path shall be rejected before the file is read. A successful load shall replace the Working Collection, the next Id, and the Bound File, and shall clear any search. `<path>` takes the same forms as in FR-29, and the status line shall name the absolute path that was read.
+**FR-34** `load <path>` shall accept only a path ending in `.pim`; any other path shall be rejected before the file is read. A successful load shall replace the Working Collection, the next Id, and the Bound File, and shall clear any search. `<path>` takes the same forms as in FR-29. On a TTY, `load` without a path shall open the folder browser (FR-38a). The status line shall name the absolute path that was read.
 
 **FR-35** A successful save followed by a load shall give back the same PIRs with the same Ids, types, fields, alarm kinds, and Effective Alarm Times.
 
@@ -291,6 +291,9 @@ STRING     := '"' characters '"'      (\" and \\ escape)
 - `dismiss`, `help`, `quit`
 
 An unknown command shall be reported as an error and change nothing. On a TTY, single-key accelerators (for example `c` create, `/` search, `w` save, `W` save as, `o` load) shall run the same commands.
+
+**FR-38a (Folder browser)** On a TTY, a load or save-as path prompt shall show a folder browser. The browser shall list the parent folder (except at the filesystem root), subfolders, and `.pim` files, without hidden entries. It shall start in the Bound File's folder, or else the folder the system was started from. Enter on a folder shall open it, and Enter on a `.pim` file shall use that file. In save mode, a "new file in this folder" entry shall ask for a file name. `/` or Tab shall switch to typing a path, and Esc shall cancel. The chosen path shall be handled exactly like a typed one (FR-29 – FR-37). A folder that cannot be read shall be reported inside the browser, not as an error that ends the command. There shall be no GUI file dialog.
+*Verification of FR-38a:* unit tests for the browser widget, the Terminal path prompts, and the curses browser keys.
 
 **FR-39** The screen shall show:
 

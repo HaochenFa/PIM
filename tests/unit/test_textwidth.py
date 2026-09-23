@@ -2,7 +2,7 @@
 
 import unittest
 
-from view.textwidth import caret_column, clip, display_width, input_window, pad, wrap
+from view.textwidth import caret_column, clip, clip_left, display_width, input_window, pad, wrap
 
 
 class DisplayWidthTests(unittest.TestCase):
@@ -12,6 +12,15 @@ class DisplayWidthTests(unittest.TestCase):
     def test_cjk_is_two_columns(self):
         self.assertEqual(display_width("香港"), 4)
         self.assertEqual(display_width("A港"), 3)
+
+    def test_clip_left_keeps_the_end_of_a_long_path(self):
+        """A path wider than the field keeps its file name and gains a leading ellipsis."""
+        path = "/Users/you/Documents/courses/work.pim"
+        self.assertEqual(clip_left(path, 60), path)
+        self.assertEqual(clip_left(path, 15), "...ses/work.pim")
+        self.assertEqual(clip_left("/文件夹/笔记.pim", 9), "...记.pim")
+        self.assertEqual(clip_left(path, 0), "")
+        self.assertEqual(clip_left(path, 2), "im")
 
     def test_clip_ascii_matches_previous_layout(self):
         name = "abcdefghijklmnopqrstuvwxyz extra"

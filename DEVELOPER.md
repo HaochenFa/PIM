@@ -9,7 +9,7 @@ Use `python3` in every command below. Stock macOS has no `python` command.
 ## Layout
 
 - `model/` — Working Collection, PIR types, Search Criterion, `.pim` JSON. This is the unit-test surface.
-- `view/` — designed terminal UI and in-process Alarm Alerts. Interactive TTY: stdlib `curses` (`get_wch` + 500ms timeout), `theme.py` colour roles, titled panes, `Chooser` widgets, and a calendar. Tests and redirected stdio: stdin-reader thread + 500ms `Queue.get` (typed answers, no curses).
+- `view/` — designed terminal UI and in-process Alarm Alerts. Interactive TTY: stdlib `curses` (`get_wch` + 500ms timeout), `theme.py` colour roles, titled panes, `Chooser` widgets, a calendar, and a folder browser for load / save-as paths. Tests and redirected stdio: stdin-reader thread + 500ms `Queue.get` (typed answers, no curses).
 - `controller/` — one completed user action → `model.PIM`.
 - `pim.py` — composition root.
 - `tests/unit/` — `model` (assignment surface, 100% lines), `controller.App`, `view.Terminal`.

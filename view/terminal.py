@@ -36,6 +36,7 @@ from view.keys import (
     SELECT_PAGE_UP,
     SELECT_UP,
 )
+from view.file_browser import LOAD as BROWSE_LOAD, SAVE as BROWSE_SAVE, FileBrowser
 from view.layout import MENU, Screen, build_screen, text_lines
 from view.stdin_reader import start_stdin_reader
 from view.widgets import (
@@ -334,13 +335,38 @@ class Terminal:
             return None
         return self._prompts[-1].picker
 
-    def ask(self, prompt: str, handler, kind: str | None = None, chooser=None, picker=None):
+    def current_browser(self):
+        """Folder browser for a load or save-as path prompt, or None."""
+        if not self._prompts:
+            return None
+        return self._prompts[-1].browser
+
+    def type_path_instead(self) -> None:
+        """Turn the current browser prompt into the plain typed path field."""
+        if self._prompts:
+            self._prompts[-1].browser = None
+
+    def ask(self, prompt: str, handler, kind: str | None = None, chooser=None, picker=None, browser=None):
         """Push a one-line prompt. `kind` marks dirty save/discard/cancel prompts.
 
-        ``chooser`` / ``picker`` are TUI widgets. The line UI still types the
-        same values the handler already understands.
+        ``chooser`` / ``picker`` / ``browser`` are TUI widgets. The line UI still
+        types the same values the handler already understands.
         """
-        self._prompts.append(Prompt(prompt, handler, kind, chooser, picker))
+        self._prompts.append(Prompt(prompt, handler, kind, chooser, picker, browser))
+
+    def _ask_path(self, mode: str, handler) -> None:
+        """Ask for a load or save-as path, with a folder browser for the TTY UI.
+
+        The browser starts in the Bound File's folder, else the working
+        directory. Either way the handler receives a path string, so the typed
+        and browsed answers share one validation path.
+        """
+        label = LOAD_PROMPT if mode == BROWSE_LOAD else SAVE_AS_PROMPT
+        bound = self.app.bound_path()
+        start = os.path.dirname(os.path.abspath(bound)) if bound else os.getcwd()
+        if not os.path.isdir(start):
+            start = os.getcwd()
+        self.ask(label, handler, browser=FileBrowser(mode, start))
 
     def _handle_line(self, line: str):
         if self._prompts:
@@ -412,13 +438,13 @@ class Terminal:
             if path:
                 self._save_as(path)
             else:
-                self.ask(SAVE_AS_PROMPT, lambda value: self._save_as(value.strip()))
+                self._ask_path(BROWSE_SAVE, lambda value: self._save_as(value.strip()))
         elif lower == "load" or lower.startswith("load "):
             path = raw[4:].strip()
             if path:
                 self._load(path)
             else:
-                self.ask(LOAD_PROMPT, lambda value: self._load(value.strip()))
+                self._ask_path(BROWSE_LOAD, lambda value: self._load(value.strip()))
         elif lower == "create" or lower.startswith("create "):
             type_name = raw[6:].strip().casefold()
             self._start_create(type_name or None)
@@ -469,7 +495,7 @@ class Terminal:
                     if self.app.save():
                         on_save()
                     return
-                self.ask(SAVE_AS_PROMPT, lambda path: self._save_as(path.strip(), then=on_save))
+                self._ask_path(BROWSE_SAVE, lambda path: self._save_as(path.strip(), then=on_save))
                 return
             self._status("enter save, discard, or cancel", STATUS_ERR)
             self._ask_dirty(on_save, on_discard, on_cancel, kind)
@@ -485,7 +511,7 @@ class Terminal:
         if self.app.bound_path():
             self.app.save()
             return
-        self.ask(SAVE_AS_PROMPT, lambda path: self._save_as(path.strip()))
+        self._ask_path(BROWSE_SAVE, lambda path: self._save_as(path.strip()))
 
     def _save_as(self, path: str, then=None):
         if not path:

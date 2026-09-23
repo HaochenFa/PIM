@@ -60,6 +60,19 @@ def clip(text: str, width: int, ellipsis: str = ELLIPSIS) -> str:
     return "".join(out)
 
 
+def clip_left(text: str, width: int, ellipsis: str = ELLIPSIS) -> str:
+    """Like ``clip`` but keeps the end of ``text``: for paths, the file name matters most."""
+    if width <= 0:
+        return ""
+    flat = text.replace("\n", " ").replace("\r", " ")
+    if display_width(flat) <= width:
+        return flat
+    ell_w = display_width(ellipsis)
+    if ell_w >= width:
+        return clip(flat[::-1], width, ellipsis="")[::-1]
+    return ellipsis + clip(flat[::-1], width - ell_w, ellipsis="")[::-1]
+
+
 def pad(text: str, width: int) -> str:
     """Clip or right-pad ``text`` so it occupies exactly ``width`` columns."""
     fitted = clip(text, width)

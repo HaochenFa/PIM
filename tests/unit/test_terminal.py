@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import os
 import unittest
 from datetime import datetime
 
@@ -359,6 +360,78 @@ class AlarmWizardTests(unittest.TestCase):
         term.dismissed = {(4, 0), (9, 0)}
         feed(term, "modify", "", "", "y", "n")
         self.assertEqual(term.dismissed, {(9, 0)})
+
+
+class BrowserPromptTests(unittest.TestCase):
+    """Load and save-as prompts carry a folder browser; the handler still takes a path string."""
+
+    def setUp(self):
+        import tempfile
+
+        self.tmpdir = tempfile.TemporaryDirectory()
+        self.dir = os.path.realpath(self.tmpdir.name)
+
+    def tearDown(self):
+        self.tmpdir.cleanup()
+
+    def test_load_browser_starts_in_the_working_directory_when_untitled(self):
+        """`o` with no Bound File browses the folder the PIM was started from."""
+        _app, term, _out = make_terminal()
+        term.apply_accelerator("load")
+        browser = term.current_browser()
+        self.assertEqual(browser.mode, "load")
+        self.assertEqual(str(browser.cwd), os.getcwd())
+
+    def test_browser_starts_in_the_bound_file_folder(self):
+        """With a Bound File, `W` browses that file's folder."""
+        app, term, _out = make_terminal()
+        app._bound = os.path.join(self.dir, "work.pim")
+        term.apply_accelerator("save_as")
+        browser = term.current_browser()
+        self.assertEqual(browser.mode, "save")
+        self.assertEqual(str(browser.cwd), self.dir)
+
+    def test_missing_bound_folder_falls_back_to_working_directory(self):
+        """A Bound File whose folder no longer exists starts the browser in the working directory."""
+        app, term, _out = make_terminal()
+        app._bound = os.path.join(self.dir, "gone", "work.pim")
+        term.apply_accelerator("save_as")
+        self.assertEqual(str(term.current_browser().cwd), os.getcwd())
+
+    def test_untitled_save_and_dirty_quit_save_both_browse(self):
+        """`w` when untitled and "save" in the dirty-quit chooser both open the save browser."""
+        _app, term, _out = make_terminal()
+        term.apply_accelerator("save")
+        self.assertEqual(term.current_browser().mode, "save")
+        term.cancel_prompt()
+        app, term, _out = make_terminal()
+        app._dirty = True
+        feed(term, "quit", "save")
+        self.assertEqual(term.current_browser().mode, "save")
+
+    def test_load_with_a_path_argument_never_opens_the_browser(self):
+        """`load <path>` loads directly; the browser is only for the bare prompt."""
+        app, term, _out = make_terminal()
+        feed(term, "load /tmp/x.pim")
+        self.assertIsNone(term.current_browser())
+        self.assertEqual(app.calls[-1], ("load", "/tmp/x.pim", False))
+
+    def test_type_path_instead_keeps_the_prompt_and_drops_the_browser(self):
+        """Switching to typing keeps the same handler: the typed path is loaded."""
+        app, term, _out = make_terminal()
+        term.apply_accelerator("load")
+        term.type_path_instead()
+        self.assertIsNone(term.current_browser())
+        self.assertEqual(term._prompt_label(), "load path: ")
+        feed(term, "/tmp/typed.pim")
+        self.assertEqual(app.calls[-1], ("load", "/tmp/typed.pim", False))
+
+    def test_browser_helpers_are_none_without_a_prompt(self):
+        """No prompt: no browser, and type_path_instead is harmless."""
+        _app, term, _out = make_terminal()
+        self.assertIsNone(term.current_browser())
+        term.type_path_instead()
+        self.assertEqual(term._prompts, [])
 
 
 class SaveLoadQuitTests(unittest.TestCase):

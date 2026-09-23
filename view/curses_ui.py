@@ -2,8 +2,9 @@
 
 The screen is an HKT lecture diary: a quiet page, a vermilion/amber
 alarm stamp, Current Result as a timetable, and the selected PIR as a
-card. Closed answers use a Chooser; datetimes use a calendar. Free text
-still goes through ``Terminal._handle_line``. The tick is ``timeout(500)``
+card. Closed answers use a Chooser; datetimes use a calendar; load and
+save-as paths use a folder browser. Free text and every widget answer
+still go through ``Terminal._handle_line``. The tick is ``timeout(500)``
 so Alarm Alerts appear without a keypress.
 """
 
@@ -47,7 +48,8 @@ from view.theme import (
     Theme,
     init_theme,
 )
-from view.textwidth import clip, display_width, input_window, wrap
+from view.file_browser import FILE, FOLDER, PARENT, FileBrowser
+from view.textwidth import clip, clip_left, display_width, input_window, wrap
 from view.widgets import WEEKDAYS, Chooser, DateTimePicker, composer_height, wrap_chips
 
 HELP_LINES = (
@@ -65,7 +67,9 @@ HELP_LINES = (
     "",
     "File",
     "  w            save       W save as (asks for a path)",
-    "  o            load (open a .pim file by path)",
+    "  o            load (open a .pim file)",
+    "  in the file browser: ↑↓ Enter open  ⌫ up  ~ home",
+    "               / or Tab type a path  Ctrl-U clear it",
     "  q            quit",
     "  :            type a full verb command",
     "  ?            this help",
@@ -158,6 +162,7 @@ class CursesUI:
             picker=picker,
             width=width,
             extra_hint=self._is_search_prompt(),
+            browser=self.term.current_browser(),
         )
 
     def _snapshot(self):
@@ -169,6 +174,7 @@ class CursesUI:
         pick = None
         if picker is not None:
             pick = (picker.day.isoformat(), picker.hour, picker.minute, picker.focus, picker.view.isoformat())
+        browser = self.term.current_browser()
         return (
             self.term._snapshot(),
             self.buffer,
@@ -180,6 +186,7 @@ class CursesUI:
             self.choice_index,
             None if chooser is None else chooser.title,
             pick,
+            None if browser is None else browser.state(),
             height,
             width,
             clock,
@@ -256,6 +263,7 @@ class CursesUI:
         height, width = self.stdscr.getmaxyx()
         chooser = self._sync_chooser()
         picker = self.term.current_picker()
+        browser = self.term.current_browser()
         geo = compute_geometry(height, width, self._composer_h())
         self.term.page_size = max(1, geo.list_h - 2)
         if geo.too_small:
@@ -278,19 +286,21 @@ class CursesUI:
             clock_x = max(0, width - display_width(clock) - 2)
             self._put(geo.title_y, clock_x, clock, bar)
         self._draw_alarm(geo, screen, width)
-        modal = picker is not None or self.show_help or (self.print_open and screen.print_text)
+        modal = picker is not None or browser is not None or self.show_help or (self.print_open and screen.print_text)
         if modal:
             self._dim_body(geo, height, width)
         self._draw_panes(geo, screen)
         self._draw_status(geo, screen, width)
-        self._draw_composer(geo, screen, chooser, picker, width)
+        self._draw_composer(geo, screen, chooser, picker, width, browser)
         if picker is not None:
             self._draw_picker(width, height, picker)
+        if browser is not None:
+            self._draw_browser(width, height, browser)
         if self.print_open and screen.print_text:
             self._draw_overlay(width, height, "PRINT", screen.print_text, self.print_scroll)
         if self.show_help:
             self._draw_overlay(width, height, "HELP", "\n".join(HELP_LINES), 0)
-        hide_cursor = bool(chooser) or picker is not None or self.show_help or self.print_open
+        hide_cursor = bool(chooser) or picker is not None or browser is not None or self.show_help or self.print_open
         if not hide_cursor and not (self.term._prompts or self.raw_command or self.buffer):
             hide_cursor = True
         try:
@@ -431,8 +441,21 @@ class CursesUI:
         self._fill(geo.status_y, self._attr(PAGE) if self.theme.rich else 0)
         self._put(geo.status_y, 1, clip(text, width - 2), attr)
 
-    def _draw_composer(self, geo, screen, chooser: Chooser | None, picker: DateTimePicker | None, width: int) -> None:
+    def _draw_composer(
+        self,
+        geo,
+        screen,
+        chooser: Chooser | None,
+        picker: DateTimePicker | None,
+        width: int,
+        browser: FileBrowser | None = None,
+    ) -> None:
         rule = self._attr(TITLE)
+        if browser is not None:
+            label = self.term._prompt_label().strip().rstrip(":")
+            self._frame(geo.composer_y, 0, geo.composer_h, width, label, rule)
+            self._put(geo.composer_y + 1, 2, clip_left(browser.highlighted_path(), width - 4), self._attr(SELECT))
+            return
         if picker is not None:
             self._frame(geo.composer_y, 0, geo.composer_h, width, picker.title, rule)
             self._put(geo.composer_y + 1, 2, clip(picker.summary(), width - 4), self._attr(SELECT))
@@ -558,6 +581,43 @@ class CursesUI:
         hint = f"arrows day  Tab time  [ ] month  t today{skip}  Enter  Esc"
         self._put(y0 + box_h - 2, x0 + 2, clip(hint, inner_w), self._attr(QUIET))
 
+    def _draw_browser(self, width: int, height: int, browser: FileBrowser) -> None:
+        """Folder browser overlay: current folder, a scrolling list, key hints."""
+        box_w = min(width - 2, 72)
+        # Folder line, rows, optional error, hint, and borders; at least 10 so the box is steady.
+        wanted = len(browser.entries) + (6 if browser.error else 5)
+        box_h = min(height - 2, 20, max(10, wanted))
+        y0 = max(0, (height - box_h) // 2)
+        x0 = max(0, (width - box_w) // 2)
+        inner_w = max(1, box_w - 4)
+        for row in range(y0 + 1, y0 + box_h - 1):
+            self._fill(row, 0, x0 + 1, box_w - 2)
+        self._frame(y0, x0, box_h, box_w, browser.title, self._attr(TITLE))
+        self._put(y0 + 1, x0 + 2, clip_left(str(browser.cwd), inner_w), self._attr(QUIET))
+        list_y = y0 + 2
+        list_h = max(1, box_h - 4)
+        if browser.error:
+            self._put(y0 + box_h - 3, x0 + 2, clip(browser.error, inner_w), self._attr(ERR))
+            list_h = max(1, list_h - 1)
+        entries = browser.entries
+        first = visible_list_window(len(entries), browser.index, list_h)
+        if not entries and not browser.error:
+            self._put(list_y, x0 + 2, clip("(no folders or .pim files)", inner_w), self._attr(QUIET))
+        for offset, entry in enumerate(entries[first : first + list_h]):
+            selected = first + offset == browser.index
+            marker = "▸ " if selected else "  "
+            if selected:
+                attr = self._attr(SELECT)
+            elif entry.kind == FILE:
+                attr = self._attr(OK)
+            elif entry.kind in {FOLDER, PARENT}:
+                attr = 0
+            else:
+                attr = self._attr(QUIET)
+            self._put(list_y + offset, x0 + 2, clip(marker + entry.label(), inner_w), attr)
+        hint = "↑↓ Enter open  ⌫ up  ~ home  / or Tab type  Esc"
+        self._put(y0 + box_h - 2, x0 + 2, clip(hint, inner_w), self._attr(QUIET))
+
     def _draw_overlay(self, width: int, height: int, title: str, body: str, scroll: int) -> None:
         inner_w = min(width - 4, max(40, width * 3 // 4))
         inner_h = min(height - 4, max(8, height * 3 // 4))
@@ -609,6 +669,9 @@ class CursesUI:
             self._safe(self.term._handle_interrupt)
             return
         self._sync_chooser()
+        if self.term.current_browser() is not None:
+            if self._handle_browser_key(ch):
+                return
         if self.term.current_picker() is not None:
             if self._handle_picker_key(ch):
                 return
@@ -700,6 +763,59 @@ class CursesUI:
             picker.move_day(7)
             return True
         return True
+
+    def _handle_browser_key(self, ch) -> bool:
+        """True when the folder browser consumed the key.
+
+        `/` and Tab leave the browser for the typed path field (pre-filled with
+        `/` or the current folder), so any path can still be typed. `~` opens
+        the home folder.
+        """
+        browser = self.term.current_browser()
+        if browser is None:
+            return False
+        if ch in (curses.KEY_ENTER, 10, 13, "\n", "\r"):
+            if browser.wants_typing():
+                self._type_path(browser.typed_start())
+                return True
+            path = browser.activate()
+            if path is not None:
+                self._picker_submit(path)
+            return True
+        if ch in (27, "\x1b"):
+            self._escape()
+            return True
+        if ch in (curses.KEY_UP, "k"):
+            browser.move(-1)
+        elif ch in (curses.KEY_DOWN, "j"):
+            browser.move(1)
+        elif ch == curses.KEY_PPAGE:
+            browser.move(-10)
+        elif ch == curses.KEY_NPAGE:
+            browser.move(10)
+        elif ch in (curses.KEY_HOME, "g"):
+            browser.jump(last=False)
+        elif ch in (curses.KEY_END, "G"):
+            browser.jump(last=True)
+        elif ch in (curses.KEY_BACKSPACE, 127, 8, "\x7f", "\b", curses.KEY_LEFT, "h"):
+            browser.go_up()
+        elif ch in (curses.KEY_RIGHT, "l"):
+            entry = browser.current()
+            if entry is not None and entry.kind in {FOLDER, PARENT}:
+                browser.activate()
+        elif ch == "~":
+            browser.go_home()
+        elif ch == "/":
+            self._type_path("/")
+        elif ch in ("\t", 9):
+            self._type_path(browser.typed_start())
+        return True
+
+    def _type_path(self, prefill: str) -> None:
+        """Close the browser and continue in the typed path field."""
+        self.term.type_path_instead()
+        self.buffer = prefill
+        self.cursor = len(prefill)
 
     def _picker_submit(self, value: str) -> None:
         self.buffer = ""
@@ -806,6 +922,11 @@ class CursesUI:
         self._safe(self.term.idle_escape)
 
     def _edit(self, ch) -> None:
+        if ch in (21, "\x15"):
+            # Ctrl-U: clear to the start, e.g. a pre-filled folder before typing a new path.
+            self.buffer = self.buffer[self.cursor :]
+            self.cursor = 0
+            return
         if ch in (curses.KEY_BACKSPACE, 127, 8, "\x7f", "\b"):
             if self.cursor > 0:
                 self.buffer = self.buffer[: self.cursor - 1] + self.buffer[self.cursor :]

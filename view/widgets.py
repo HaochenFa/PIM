@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
 from model.pir import HKT
+from view.file_browser import FileBrowser
 from view.textwidth import display_width
 
 WEEKDAYS = ("Mo", "Tu", "We", "Th", "Fr", "Sa", "Su")
@@ -199,13 +200,17 @@ def _next_slot(local: datetime) -> tuple[date, int, int]:
 
 @dataclass
 class Prompt:
-    """One stacked ask(): label, callback, optional dirty kind, optional widgets."""
+    """One stacked ask(): label, callback, optional dirty kind, optional widgets.
+
+    At most one of ``chooser``, ``picker``, or ``browser`` is set.
+    """
 
     label: str
     handler: object
     kind: str | None = None
     chooser: Chooser | None = None
     picker: DateTimePicker | None = None
+    browser: FileBrowser | None = None
 
 
 def type_chooser() -> Chooser:
@@ -331,9 +336,10 @@ def composer_height(
     picker: DateTimePicker | None = None,
     width: int = 80,
     extra_hint: bool = False,
+    browser: FileBrowser | None = None,
 ) -> int:
     """Rows for the bottom composer: selector, labelled field, or idle hints."""
-    if picker is not None:
+    if picker is not None or browser is not None:
         return 3
     if chooser is not None:
         inner = max(8, width - 4)
