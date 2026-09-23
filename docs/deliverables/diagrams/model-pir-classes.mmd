@@ -1,0 +1,83 @@
+classDiagram
+    direction TB
+    class PIM {
+        -dict~int,PIR~ _pirs
+        -int _next_id
+        -bool _dirty
+        -str _bound_path
+        +create_note(text) Note
+        +create_task(description, deadline) Task
+        +create_event(description, start, alarms) Event
+        +create_contact(name, address, mobile) Contact
+        +modify(pir_id, fields) PIR
+        +delete(pir_id) None
+        +get(pir_id) PIR
+        +all() list~PIR~
+        +search(criterion) list~PIR~
+        +due_alarms(now) list~DueAlarm~
+        +save(path) None
+        +load(path, force) None
+        +is_dirty() bool
+        +bound_path() str
+    }
+    class PIR {
+        <<abstract>>
+        +int id
+        +str type_name
+        +FIELDS tuple~FieldSpec~
+        +display_name str
+        +text_fields() list~str~
+        +text_value(field) str
+        +time_values(field) list~datetime~
+        +relevant_time() datetime
+        +modify(fields) None
+        +to_json() dict
+        +detail_lines() list
+    }
+    class Note {
+        +str text
+    }
+    class Task {
+        +str description
+        +datetime deadline
+    }
+    class Event {
+        +str description
+        +datetime start
+        +list alarms
+        +effective_alarm_times() list~datetime~
+    }
+    class Contact {
+        +str name
+        +str address
+        +str mobile
+    }
+    class RelativeAlarm {
+        +int amount
+        +str unit
+        +effective(start) datetime
+        +to_json() dict
+        +kind_label() str
+    }
+    class AbsoluteAlarm {
+        +datetime at
+        +effective(start) datetime
+        +to_json() dict
+        +kind_label() str
+    }
+    class DueAlarm {
+        +int event_id
+        +int alarm_index
+        +datetime at
+        +str status
+        +str description
+        +key() tuple
+    }
+    PIR <|-- Note
+    PIR <|-- Task
+    PIR <|-- Event
+    PIR <|-- Contact
+    PIM "1" o-- "0..*" PIR : holds
+    Event "1" *-- "0..*" RelativeAlarm
+    Event "1" *-- "0..*" AbsoluteAlarm
+    PIM ..> DueAlarm : creates

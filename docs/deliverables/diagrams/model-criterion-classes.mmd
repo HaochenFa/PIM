@@ -1,0 +1,65 @@
+classDiagram
+    direction TB
+    class Criterion {
+        <<abstract>>
+        +matches(pir) bool
+    }
+    class TypeIs {
+        +str type_name
+    }
+    class Contains {
+        +str field
+        +str needle
+    }
+    class TimeCompare {
+        +str field
+        +str op
+        +datetime instant
+    }
+    class And {
+        +Criterion left
+        +Criterion right
+    }
+    class Or {
+        +Criterion left
+        +Criterion right
+    }
+    class Not {
+        +Criterion inner
+    }
+
+    class PIMError {
+        <<exception>>
+        +status_message() str
+    }
+    class ValidationError
+    class NotFound
+    class ParseError {
+        +status_message() str
+    }
+    class DirtyLoadError
+    class FileFormatError {
+        +status_message() str
+    }
+    class ExtensionError
+    class parse_criterion {
+        <<function>>
+        +parse_criterion(text) Criterion
+    }
+    Criterion <|-- TypeIs
+    Criterion <|-- Contains
+    Criterion <|-- TimeCompare
+    Criterion <|-- And
+    Criterion <|-- Or
+    Criterion <|-- Not
+    And o-- "2" Criterion
+    Or o-- "2" Criterion
+    Not o-- "1" Criterion
+    parse_criterion ..> Criterion : builds
+    parse_criterion ..> ParseError : raises
+    PIMError <|-- ValidationError
+    PIMError <|-- NotFound
+    PIMError <|-- ParseError
+    PIMError <|-- DirtyLoadError
+    PIMError <|-- FileFormatError
+    PIMError <|-- ExtensionError
