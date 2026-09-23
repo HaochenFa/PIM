@@ -9,6 +9,6 @@ re-exports only and is excluded. Third-party coverage.py is not used.
 criterion.py: 247/247 lines (100.0%)
 pim.py: 91/91 lines (100.0%)
 pimfile.py: 81/81 lines (100.0%)
-pir.py: 373/373 lines (100.0%)
+pir.py: 374/374 lines (100.0%)
 
-TOTAL model/: 792/792 lines (100.0%)
+TOTAL model/: 793/793 lines (100.0%)
