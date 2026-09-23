@@ -57,6 +57,19 @@ class FileBrowserTests(unittest.TestCase):
         browser.move(1)
         self.assertEqual(browser.activate(), str(self.root.absolute() / "A-folder" / "inner.pim"))
 
+    def test_highlighted_path_names_the_row_or_this_folder(self):
+        """The composer shows the highlighted folder or file path, else the current folder."""
+        browser = FileBrowser(SAVE, self.root)
+        here = str(self.root.absolute())
+        self.assertEqual(browser.highlighted_path(), here)
+        browser.move(1)
+        self.assertEqual(browser.current().kind, PARENT)
+        self.assertEqual(browser.highlighted_path(), here)
+        browser.move(1)
+        self.assertEqual(browser.highlighted_path(), os.path.join(here, "A-folder"))
+        browser.jump(last=True)
+        self.assertEqual(browser.highlighted_path(), os.path.join(here, "work.pim"))
+
     def test_go_up_highlights_the_folder_we_left(self):
         """`../` or Backspace returns to the parent with the previous folder highlighted."""
         browser = FileBrowser(LOAD, self.root / "b-folder")

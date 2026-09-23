@@ -140,6 +140,13 @@ class FileBrowser:
             return str(self.cwd / entry.name)
         return None
 
+    def highlighted_path(self) -> str:
+        """Absolute path of the highlighted folder or file; this folder otherwise."""
+        entry = self.current()
+        if entry is not None and entry.kind in {FOLDER, FILE}:
+            return str(self.cwd / entry.name)
+        return str(self.cwd)
+
     def wants_typing(self) -> bool:
         """True when the highlighted row is "new file here"."""
         entry = self.current()
