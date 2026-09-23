@@ -23,7 +23,7 @@ On a narrow terminal the list stacks above the detail pane. If the window is sma
 When the answer is one of a few values, the composer becomes a selector. You do **not** type the word.
 
 | Situation | Options | How |
-|---|---|---|
+|-------------------------------------|-----------------------------------------------|----------------------------------------------------------------------|
 | Create | Note · Task · Event · Contact | `←` `→`, or `1`–`4`, or `n` `t` `e` `c`, then Enter. A letter confirms immediately. |
 | Delete, overwrite, add/replace alarms | Yes · No | Default is **No**. `y` / `n` or arrows + Enter. |
 | Alarm kind | Relative · Absolute | `r` / `a` |
@@ -42,7 +42,7 @@ Event **start**, Task **deadline**, and an **absolute alarm** open a calendar, n
 - The bar under the grid shows what you will save, e.g. `Tue 15 September 2026  18:30  HKT`
 
 | Key | What it does |
-|---|---|
+|---------------|---------------------------------------------------------|
 | `←` `→` `↑` `↓` | Move by day or week (date) / 15 minutes or 1 hour (time) |
 | `Tab` | Switch between the grid and the time list |
 | `[` `]` | Previous / next month |
@@ -59,7 +59,7 @@ You do not type ISO 8601. The line-oriented UI (tests, redirected input) still a
 These run immediately when the prompt is empty (nothing typed, no wizard):
 
 | Key | What it does |
-|---|---|
+|----------------------------|----------------------------------------------------------------------|
 | `↑` `↓` / `j` `k` | Select the previous or next row of Current Result |
 | `PgUp` `PgDn` / `Home` `End` | Page, first row, last row |
 | `/` | Search: enter one criterion line. An example is shown while the field is empty. A syntax error keeps the typed line |
@@ -81,7 +81,7 @@ While a wizard is asking for a field, type the value and press Enter. Empty Ente
 ## Commands
 
 | Command | What it does |
-|---|---|
+|----------------------------------------------|----------------------------------------------------------------------|
 | `create` / `create note\|task\|event\|contact` | Prompt for fields. Empty enter skips an optional field. After an Event start, you may add several alarms. |
 | `search <criterion>` | Replace Current Result with matches and select the first hit. `search` alone then asks for the criterion. |
 | `clear` | Show the whole collection again (`Esc` in the full-screen UI when idle) |
@@ -100,7 +100,7 @@ While a wizard is asking for a field, type the value and press Enter. Empty Ente
 **Choosing where to save and what to open.** In the full-screen UI, `o` (load) and `W` (save as) open a folder browser, starting in the folder of the open file (or where you started the PIM). It shows `../`, folders, and `.pim` files:
 
 | Key | In the folder browser |
-|---|---|
+|----------------------------------------------|----------------------------------------------------------------------|
 | `↑` `↓` / `j` `k`, `PgUp` `PgDn`, `Home` `End` | Move |
 | `Enter` | Open a folder, or pick the highlighted `.pim` file (save as asks before overwriting it) |
 | `⌫` / `←` | Up one folder |
@@ -110,7 +110,32 @@ While a wizard is asking for a field, type the value and press Enter. Empty Ente
 
 To save as a new file, pick **+ New file in this folder…**, type a name, and press Enter. `.pim` is added for you. There is no macOS Finder window: the PIM is a command-line program (the brief) and stays inside the terminal.
 
-You can always type a path instead: at the prompt, or as `save as <path>` / `load <path>`. This is also the only way in the line-oriented UI. Paths may be absolute (`/Users/you/Documents/work.pim`), start with `~` for your home folder (`~/Desktop/work`), or be relative to the folder you started `python pim.py` from. Missing folders on a save path are created. After a save or load, the status line shows the full path, e.g. `Saved /Users/you/Desktop/work.pim`.
+You can always type a path instead: at the prompt, or as `save as <path>` / `load <path>`. This is also the only way in the line-oriented UI. Paths may be absolute (`/Users/you/Documents/work.pim`), start with `~` for your home folder (`~/Desktop/work`), or be relative to the folder you started `python3 pim.py` from. Missing folders on a save path are created. After a save or load, the status line shows the full path, e.g. `Saved /Users/you/Desktop/work.pim`.
+
+## Reading the output
+
+Every command ends with one line on the **status line**: what happened (`Created Event Id 1`, `3 match(es)`, `Saved /Users/you/Desktop/work.pim`) or what went wrong (see Errors). In the full-screen UI, success is green and an error is red.
+
+The **Current Result** list has one row per PIR: `#` is the row number (for selecting, not an identity), then the Id, the type, the Display Name (a Note's first line, a Task's or Event's description, a Contact's name), and the deadline or start if there is one.
+
+`print` and `print all` show every field. Times are ISO 8601 with their offset (`+08:00` is Hong Kong Time). An optional field that is not set shows `(none)`. Each Event alarm shows its kind and the **effective** time it fires:
+
+```
+  Id: 1
+  type: event
+  description: COMP3211 lecture
+  start: 2026-09-14T18:30:00+08:00
+  alarm[0]: relative 1 day before start; effective 2026-09-13T18:30:00+08:00
+  alarm[1]: absolute; effective 2026-09-13T09:00:00+08:00
+
+  Id: 2
+  type: contact
+  name: Ada
+  address: (none)
+  mobile: 12345678
+```
+
+The **alarm band** lists each alarm that is `OVERDUE` (its effective time has passed) or `SOON` (due within 15 minutes), with the Event's Id, description, and effective time. `d` or `dismiss` hides the first one until you quit.
 
 ## Search criterion
 
@@ -135,7 +160,7 @@ Relative: at start (`amount` 0) or N minutes/hours/days/weeks **before** start. 
 Invalid input does not change your data, does not print a traceback, and does not exit. The status line names the problem (missing field, bad Id, bad datetime, bad search syntax, wrong extension, no selection, attempt to change type). Some messages you may see:
 
 | Status line | Meaning |
-|---|---|
+|------------------------------------------------------|----------------------------------------------------------------------|
 | `text is required` (or `description`, `start`, `name`) | A required field was left empty. |
 | `invalid datetime: …` | The value is not ISO 8601 or `YYYY-MM-DD HH:MM`. |
 | `datetime out of range` | The instant falls outside years 1–9999 in Hong Kong Time or UTC (for example `0001-01-01 00:10`). |

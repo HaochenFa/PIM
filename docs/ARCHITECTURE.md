@@ -1,6 +1,6 @@
 # Technical Architecture
 
-This is the architecture the assignment’s design document must explain: the chosen pattern, the main code parts and how they relate, and the collaboration for “search then update”. Implementation follows this file. Domain meaning follows `docs/PRODUCT.md` and `CONTEXT.md`.
+This is the architecture the assignment’s design document must explain: the chosen pattern, the main code parts and how they relate, and the collaboration for “search then update”. Implementation follows this file. Domain meaning follows `docs/PRODUCT.md` and `CONTEXT.md`. The reasons behind each choice are in `docs/deliverables/DESIGN.md` §5.
 
 ---
 
@@ -149,7 +149,7 @@ Constraints:
 - Do not repaint the whole screen every tick; repaint only when the due set, dismissed set, Working Collection, Bound File, Current Result, selection, or status line changes.
 - The reader thread never touches `PIM`. No lock.
 - dismissed: in-memory View `set[(event_id, alarm_index)]`, not stored in the file.
-- `curses` is allowed in `view` only (ADR-0018).
+- `curses` is allowed in `view` only (DESIGN §5.1).
 
 ## 5. PIM File JSON
 
@@ -244,7 +244,7 @@ Unit tests (the assignment requires tests for the model only):
 - `due_alarms(now)` OVERDUE / SOON boundaries (injected now)
 - dirty flag; a bad file must not clobber memory
 
-The line-coverage report is for `model/` (unit tests only) and lives in the source root. Integration and e2e suites are extra in-repo gates; they are not a substitute for model unit tests. See `docs/adr/0017`.
+The line-coverage report is for `model/` (unit tests only) and lives in the source root. Integration and e2e suites are extra in-repo gates; they are not a substitute for model unit tests. See DESIGN §5.5.
 
 ## 8. Mapping to the rubric
 
