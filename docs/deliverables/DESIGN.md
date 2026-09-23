@@ -1,12 +1,12 @@
 ---
 title: "Design Document — Personal Information Management (PIM) System"
 subtitle: "COMP3211 Software Engineering, Fall 2026 — Group Project"
-date: "Version 1.1 draft, 24 September 2026"
+date: "Version 1.2 draft, 24 September 2026"
 ---
 
-<!-- Source-tree note (not rendered): docs/ARCHITECTURE.md is the working
-architecture reference; this document is the submitted design. Section 5 is the
-only record of design decisions. -->
+<!-- Source-tree note (not rendered): this is the only architecture and
+design document in the repository, and Section 5 is the only record of design
+decisions. Change it when the design changes. -->
 
 Requirement ids such as FR-16 refer to the Software Requirements Specification (SRS).
 
@@ -51,11 +51,32 @@ The system uses the **Model–View–Controller (MVC)** pattern. Each of the thr
 | View | `view.Terminal`, `view.CursesUI`, helper modules | Owns the event loop (500 ms tick). Reads keys or lines. Asks for fields one at a time. Draws the title, Alarm Alert banner, list, detail, and status line. Remembers which alerts were dismissed. |
 | Composition root | `pim.py` | `main()` creates `PIM()`, passes it to `App(pim)`, passes that to `Terminal(app)`, and calls `run()`. |
 
+**Package layout.**
+
+```
+pim.py              composition root: python3 pim.py
+model/              the unit-test surface; no threads, input, or screen code
+  pim.py            PIM: Working Collection, Ids, dirty flag, save/load, due alarms
+  pir.py            PIR hierarchy, alarms, field specs, date-time parsing, exceptions
+  criterion.py      search criteria (Composite) and parse_criterion
+  pimfile.py        PIM File JSON codec and atomic write
+controller/
+  app.py            App: one user action -> PIM calls; Current Result, Selection
+  errors.py         message_for: exception -> one status line
+view/
+  terminal.py       Terminal: prompts, wizards, Alarm Alerts, line UI loop
+  curses_ui.py      CursesUI: full-screen loop on a TTY
+  layout.py, widgets.py, file_browser.py, keys.py, theme.py,
+  textwidth.py, stdin_reader.py   helpers (Section 3.2)
+tests/unit, tests/integration, tests/e2e
+```
+
 **Dependency rules.**
 
 - `model` imports nothing from `view` or `controller`.
 - `controller` imports `model` only.
 - `view` calls `controller.App` for every action. It imports from `model` only value types and helpers: it displays `PIR` and `DueAlarm` objects, builds `RelativeAlarm` / `AbsoluteAlarm` values in the alarm prompts, and uses `HKT` for the clock.
+- `view` holds no business rules and does not know the file format; `controller` never reads or writes files itself.
 - No module imports anything outside the Python standard library.
 
 **Event loop.** The View runs the loop, and only its main thread calls the model:
@@ -63,7 +84,7 @@ The system uses the **Model–View–Controller (MVC)** pattern. Each of the thr
 - On a TTY, `CursesUI.loop` waits for a key with a 500 ms timeout.
 - Otherwise, a daemon thread reads standard input into a `Queue`, and `Terminal` waits on the queue with a 500 ms timeout.
 
-After each input or timeout, the View asks `App.due_alarms(now)` for alerts and redraws only if something changed.
+After each input or timeout, the View asks `App.due_alarms(now)` for alerts and redraws only if something changed: the due or dismissed alarms, the collection, the Bound File, the Current Result, the Selection, or the status line. The reader thread only queues lines and never touches the model, so no lock is needed. Dismissed alerts are a set of (Event Id, alarm index) pairs in the View; they are never written to the PIM File.
 
 # 3. Structure of and relationships among the main code components
 
@@ -188,6 +209,34 @@ All are subclasses of `PIMError(Exception)`, which provides `status_message() ->
 - `DirtyLoadError`: load with unsaved changes and no force.
 - `FileFormatError`: the file is not a valid `pim/v1` PIM File.
 - `ExtensionError`: the path does not end in `.pim`.
+
+### PIM File format
+
+A PIM File is UTF-8 JSON. `write_pim_file` writes it; `read_pim_file` checks it completely before `PIM.load` replaces anything (SRS FR-31, FR-36).
+
+```json
+{
+  "format": "pim/v1",
+  "next_id": 5,
+  "pirs": [
+    { "id": 1, "type": "note", "text": "buy milk" },
+    { "id": 2, "type": "task", "description": "submit ZIP",
+      "deadline": "2026-11-20T20:00:00+08:00" },
+    { "id": 3, "type": "event", "description": "COMP3211 lecture",
+      "start": "2026-09-14T18:30:00+08:00",
+      "alarms": [
+        { "kind": "relative", "amount": 1, "unit": "day" },
+        { "kind": "relative", "amount": 0, "unit": "minute" },
+        { "kind": "absolute", "at": "2026-09-13T09:00:00+08:00" } ] },
+    { "id": 4, "type": "contact", "name": "Ada",
+      "address": null, "mobile": "12345678" }
+  ]
+}
+```
+
+- `unit` is `minute`, `hour`, `day`, or `week`; `amount` 0 means at the start.
+- An optional field may be `null` or left out; both mean "not set".
+- `next_id` is stored so that a deleted Id is never reused after a load. If it is not above the largest Id in the file, the load raises it.
 
 ## 3.2 Controller and View classes
 
