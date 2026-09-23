@@ -16,6 +16,18 @@ If anything conflicts, follow this order:
 
 Do not reopen locked decisions. Do not add decisions that contradict accepted ones. If a genuine conflict with the brief appears, stop and tell the user; do not patch around it.
 
+## Commands (macOS, from the repository root)
+
+```bash
+python3 pim.py                                      # curses UI on a TTY
+PIM_NO_CURSES=1 python3 pim.py                      # line UI (what tests drive)
+python3 -m unittest                                 # all three layers
+python3 -m unittest discover -s tests/unit -t .     # or tests/integration, tests/e2e
+python3 coverage_report.py                          # writes coverage.txt; must be 100% of model/
+git config core.hooksPath hooks                     # once per clone: enable the gate
+sh docs/deliverables/build.sh                       # graded PDFs -> dist/ (needs pandoc, xelatex, mmdc)
+```
+
 ## Project intent
 
 This is a **course group project**: a command-line Personal Information Management (PIM) system. The goal is full marks on the brief (SRS, design, implementation, model unit tests, presentation) — not a product beyond Appendix B.
@@ -104,7 +116,7 @@ Use the SRS glossary terms as written. Forbidden substitutions:
 - Each test must state the behaviour it exercises (name or comment) and assert expected results.
 - Cover: four types create/validate/modify/delete; Id stability; contains / unqualified contains / missing-field time / and-or-not / multi-alarm; save/load round-trip; `due_alarms` with injected `now`; dirty flag; corrupt file does not clobber memory.
 - Prefer the shared fixture in `tests/fixture.py`.
-- Line-coverage report for `model/` belongs at the source root (`python coverage_report.py`).
+- Line-coverage report for `model/` belongs at the source root (`python3 coverage_report.py`).
 - Pre-commit (`hooks/pre-commit`): unit tests at 100% `model/` coverage, then integration, then e2e, or the commit is refused. `git config core.hooksPath hooks`. Bypass: `git commit --no-verify`.
 
 ## Agent working rules
@@ -118,6 +130,10 @@ Use the SRS glossary terms as written. Forbidden substitutions:
 - Do not add separate product, architecture, acceptance, or glossary files; the SRS and the design document are the only specifications.
 - Do not add dated plan files or separate decision records (ADRs). Open work, manual checks, and known gaps go in `docs/BACKLOG.md`; move an item to its Done table when it lands.
 - Honour Declaration: GenAI use is allowed if acknowledged. Do not invent a false “no GenAI” claim. Contribution splits are the group’s, not the agent’s.
+- The SRS, DESIGN, manuals, and `REQUIREMENTS.md` are graded as PDFs. Keep repo-only notes in `<!-- -->` comments (pandoc drops them), and never cite files a grader won't have. After changing a table, rebuild and look at `dist/*.pdf`: the dash counts in a pipe table's separator row set the column widths.
+- `hooks/pre-commit` rewrites `coverage.txt`. If it changes, commit it with the change that caused it.
+- To stage a file already removed with `git rm`, use `git add -A -- <paths>`. A plain `git add` of that path fails and aborts an `&&` chain.
+- To try the curses UI by hand, run it under tmux with `HOME` set to a temporary folder, so the folder browser and `~` paths don't touch your real home folder.
 
 ## Commit messages
 
@@ -166,7 +182,7 @@ Do this even when the user said “implement/fix/refactor all of this” in one 
 
 Do **not** split a single atomic behaviour across commits (e.g. a `model` change that would fail tests until the matching `tests/` file lands — those stay together). Do not invent tiny commits for whitespace or import reorder.
 
-Order dependent commits so each leaves `python -m unittest` green.
+Order dependent commits so each leaves `python3 -m unittest` green.
 
 ### Pull request summary
 
@@ -178,7 +194,7 @@ Required sections, in this order:
 
 1. **Summary** — what shipped and why (user stories, design decisions, or the defect). Two to five sentences. Name the user-visible behaviour.
 2. **What changed** — bullets by layer (`model`, `view`/`controller`, tests, docs). Call out behaviour a reviewer must not miss (atomic failure, dirty load/quit, Current Result vs `print all`, injected `now`).
-3. **How to check** — exact commands (`python -m unittest`, `python pim.py`, demo steps from the demo script in `docs/BACKLOG.md`). State the platform if it matters (macOS).
+3. **How to check** — exact commands (`python3 -m unittest`, `python3 pim.py`, demo steps from the demo script in `docs/BACKLOG.md`). State the platform if it matters (macOS).
 4. **Out of scope** — explicit: extra features not in Appendix B, and course artefacts this PR does not claim (SRS, videos, Honour Declaration) when that applies.
 
 Optional when useful: **Risks / follow-ups** (known gaps, coverage holes, UI edges). **Commits** as a short list only after the summary, not instead of it.
@@ -198,7 +214,7 @@ Code the agent writes or substantially edits must be documented in **English**:
 Before calling implementation work done:
 
 1. Every FR and NFR in the SRS is met, and `REQUIREMENTS.md` shows no row as not implemented.
-2. `python -m unittest` is green.
+2. `python3 -m unittest` is green.
 3. `python3 pim.py` can run the demo script in `docs/BACKLOG.md` on macOS with stdlib only.
 4. No third-party imports anywhere in the submitted source.
 
