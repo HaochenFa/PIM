@@ -1,11 +1,11 @@
 ---
 title: "Software Requirements Specification — Personal Information Management (PIM) System"
 subtitle: "COMP3211 Software Engineering, Fall 2026 — Group Project"
-date: "Version 1.1 draft, 24 September 2026"
+date: "Version 1.2 draft, 24 September 2026"
 ---
 
-<!-- Source-tree note (not rendered): docs/PRODUCT.md and docs/ACCEPTANCE.md
-are the working product references. Keep them and this SRS in step; the
+<!-- Source-tree note (not rendered): this SRS is the only product
+specification in the repository. Change it when a requirement changes; the
 requirement ids below are the ones REQUIREMENTS.md reports against. -->
 
 # 1. Preface
@@ -26,6 +26,7 @@ Readers are expected to know basic software-engineering terms. They do not need 
 |---------|-----------|----------------------------------------------------------------------|
 | 1.0 draft | 23 Sep 2026 | First complete draft. It covers user stories US1–US11, the in-process Alarm Alert, and the non-functional constraints of the brief. |
 | 1.1 draft | 24 Sep 2026 | Store and load (FR-29, FR-34): paths may start with `~`, and the status line names the absolute path. Accelerators `W` (save as) and `o` (load) (FR-38). New FR-39: folder browser for load and save-as paths. The former FR-39 – FR-42 are now FR-40 – FR-43. Verification lines name the tests. |
+| 1.2 draft | 24 Sep 2026 | This SRS becomes the only product specification in the source tree. Added the glossary term Alarm Alert, the selection errors in FR-26, and the list of covered invalid inputs in NFR-4. |
 
 ## 1.3 Conventions
 
@@ -83,6 +84,7 @@ The system reads and writes `.pim` files on the local file system. It has no oth
 | Contact | A PIR with a required `name` and an optional `address` and `mobile` number. |
 | Name | The person name of a Contact. It is not unique and is not an identity. |
 | Alarm | A reminder attached to an Event. It is either *Relative* (at start, or a duration before start) or *Absolute* (a fixed instant). |
+| Alarm Alert | A banner shown while the program runs for an Alarm that is OVERDUE (its Effective Alarm Time has passed) or SOON (due within 15 minutes), until the user dismisses it. Dismissals are not stored. |
 | Effective Alarm Time | The instant an Alarm fires. For a Relative alarm it is `start` minus the duration; for an Absolute alarm it is the stored instant. |
 | Display Name | A short label derived for list views and never stored. For a Note it is the first line of the body; for a Task or Event, the description; for a Contact, the name. |
 | Current Result | The list of PIRs on screen. At first it is the whole Working Collection; a search replaces it with the matches. |
@@ -244,9 +246,9 @@ STRING     := '"' characters '"'      (\" and \\ escape)
 **FR-25** The command `print all` shall print every field of every PIR in the **Current Result**, in list order. When no search is active (at start-up, after `clear`, or after `load`), the Current Result is the whole Working Collection, so `print all` prints all PIRs.
 *Rationale: US8 asks to print "all PIRs". Printing the Current Result also lets the user print "all PIRs that match a search", which is the more useful reading. The user gets every PIR by running `clear` first.*
 
-**FR-26** `print`, `modify`, and `delete` with no Selection shall fail with `no PIR selected`.
+**FR-26** `print`, `modify`, and `delete` with no Selection shall fail with `no PIR selected`. Selecting an Id that does not exist shall fail with `no PIR with Id <n>`, and a row number outside the Current Result with `no row <n> in Current Result`; the Selection shall stay unchanged.
 
-*Verification of FR-24 – FR-26:* controller unit tests; e2e print scripts.
+*Verification of FR-24 – FR-26:* controller unit tests; integration test `test_select_row_is_not_identity` for the selection errors; e2e print scripts.
 
 ## 6.5 Deleting (US9)
 
@@ -330,7 +332,7 @@ A row number shall select by position in the Current Result and is not an identi
 **NFR-3 (Structure)** All model code shall be in a package named `model`, which shall not import `view` or `controller`. The other components shall be in `view` and `controller`.
 *Verification:* inspect imports.
 
-**NFR-4 (Reliability)** Invalid input or a failed command shall not change the Working Collection, shall not print a traceback, and shall not end the process. The system shall report exactly one English message on the status line. An unexpected internal error in a command shall be reported as `command failed`, and the session shall continue.
+**NFR-4 (Reliability)** Invalid input or a failed command shall not change the Working Collection, shall not print a traceback, and shall not end the process. The system shall report exactly one English message on the status line. This covers at least: an unknown command, a missing required field, a bad Id or row number, a bad date-time, a search syntax error, a path without `.pim` on load, a missing file name, no Selection, and an attempt to change a PIR's type. An unexpected internal error in a command shall be reported as `command failed`, and the session shall continue.
 *Verification:* unit, integration, and e2e error tests.
 
 **NFR-5 (Data integrity)** A failed save shall not damage the earlier file, and a failed load shall not change memory (see FR-32 and FR-36). The system shall never silently discard unsaved changes (FR-37).
