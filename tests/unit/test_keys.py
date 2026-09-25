@@ -18,6 +18,7 @@ from view.keys import (
 
 class AcceleratorMapTests(unittest.TestCase):
     def test_slash_is_search_and_letters_match_the_plan(self):
+        """Single-character accelerators map to their action; an unmapped or multi-character input gives `None`."""
         self.assertEqual(action_for_char("/"), SEARCH)
         self.assertEqual(action_for_char("c"), CREATE)
         self.assertEqual(action_for_char("j"), SELECT_DOWN)
@@ -33,6 +34,7 @@ class AcceleratorMapTests(unittest.TestCase):
         self.assertEqual(action_for_char("o"), LOAD)
 
     def test_curses_key_names(self):
+        """Curses key names like `KEY_UP`/`KEY_DOWN`/`KEY_DC` map to their action; an unmapped name gives `None`."""
         self.assertEqual(action_for_key_name("KEY_UP"), SELECT_UP)
         self.assertEqual(action_for_key_name("KEY_DOWN"), SELECT_DOWN)
         self.assertEqual(action_for_key_name("KEY_DC"), DELETE)

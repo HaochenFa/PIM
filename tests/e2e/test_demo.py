@@ -19,6 +19,7 @@ class DemoScriptTests(unittest.TestCase):
         self.tmpdir.cleanup()
 
     def test_demo_create_search_modify_print_save_and_reload(self):
+        """The docs/BACKLOG.md demo: create four PIRs, search, modify an Event's start, print, save, and reload."""
         dest = self.dir / "demo"
         app, _term, out = run_script(
             [
