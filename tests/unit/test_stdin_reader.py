@@ -29,6 +29,7 @@ class FakeStdin:
 
 class StdinReaderTests(unittest.TestCase):
     def test_strips_newline_and_signals_eof(self):
+        """The reader strips each line's trailing newline and enqueues `None` once `readline` returns empty."""
         queue = Queue()
         thread = start_stdin_reader(queue, FakeStdin(["help\n", "quit"]))
         thread.join(timeout=2)
@@ -38,6 +39,7 @@ class StdinReaderTests(unittest.TestCase):
         self.assertIsNone(queue.get_nowait())
 
     def test_tty_eof_keeps_listening_for_the_next_line(self):
+        """On a TTY, an empty `readline` enqueues `None` but the reader keeps listening for the next line."""
         queue = Queue()
 
         class TtyThenStop(FakeStdin):

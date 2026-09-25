@@ -32,6 +32,7 @@ class TypeIs(Criterion):
         self.type_name = name
 
     def matches(self, pir: PIR) -> bool:
+        """True when the PIR is of this type."""
         return pir.type_name == self.type_name
 
 
@@ -49,6 +50,7 @@ class Contains(Criterion):
         self.needle = needle.casefold()
 
     def matches(self, pir: PIR) -> bool:
+        """True when the named field, or any text field when unqualified, contains the needle after case folding."""
         if self.field is None:
             return any(self.needle in text.casefold() for text in pir.text_fields())
         value = pir.text_value(self.field)
@@ -71,6 +73,7 @@ class TimeCompare(Criterion):
         self.instant = instant
 
     def matches(self, pir: PIR) -> bool:
+        """True when any instant of the field satisfies the comparison; false if the PIR has none."""
         values = pir.time_values(self.field)
         if not values:
             return False
@@ -86,6 +89,7 @@ class And(Criterion):
         self.right = right
 
     def matches(self, pir: PIR) -> bool:
+        """True when both sub-criteria match."""
         return self.left.matches(pir) and self.right.matches(pir)
 
 
@@ -97,6 +101,7 @@ class Or(Criterion):
         self.right = right
 
     def matches(self, pir: PIR) -> bool:
+        """True when either sub-criterion matches."""
         return self.left.matches(pir) or self.right.matches(pir)
 
 
@@ -107,6 +112,7 @@ class Not(Criterion):
         self.inner = inner
 
     def matches(self, pir: PIR) -> bool:
+        """True when the inner criterion does not match."""
         return not self.inner.matches(pir)
 
 
@@ -183,6 +189,7 @@ def tokenize(text: str) -> list[tuple[str, str]]:
 
 
 def _follows_time_field(tokens: list[tuple[str, str]]) -> bool:
+    """True when the last two tokens are a time field and a comparison, so a datetime comes next."""
     if len(tokens) < 2:
         return False
     kind, value = tokens[-2]
@@ -190,6 +197,10 @@ def _follows_time_field(tokens: list[tuple[str, str]]) -> bool:
 
 
 def _consume_datetime(text: str, i: int, tokens: list[tuple[str, str]]) -> int:
+    """Append an unquoted datetime as one TIME token, up to `&&`, `||`, or `)`.
+
+    Returns the index after it, or `i` unchanged when the value is quoted or missing.
+    """
     n = len(text)
     while i < n and text[i].isspace():
         i += 1
@@ -208,6 +219,10 @@ def _consume_datetime(text: str, i: int, tokens: list[tuple[str, str]]) -> int:
 
 
 def _read_string(text: str, start: int) -> tuple[str, int]:
+    """Read a quoted string starting at `start`; returns its value and the index after it.
+
+    Backslash escapes the next character (`\\n` is a newline). Raises ParseError if unterminated.
+    """
     i = start + 1
     chars: list[str] = []
     n = len(text)
@@ -232,28 +247,35 @@ def _read_string(text: str, start: int) -> tuple[str, int]:
 
 
 class _Parser:
+    """Recursive-descent parser over a token list; precedence is `!` > `&&` > `||`."""
+
     def __init__(self, tokens: list[tuple[str, str]]):
         self.tokens = tokens
         self.index = 0
 
     def peek(self) -> tuple[str, str]:
+        """The current token without consuming it."""
         return self.tokens[self.index]
 
     def peek_kind(self) -> str:
+        """The kind of the current token."""
         return self.peek()[0]
 
     def take(self) -> tuple[str, str]:
+        """Consume and return the current token."""
         token = self.peek()
         self.index += 1
         return token
 
     def expect(self, kind: str) -> tuple[str, str]:
+        """Consume a token of `kind`; raise ParseError if the next token is another kind."""
         got = self.take()
         if got[0] != kind:
             raise ParseError(f"expected {kind}, got {got[1]!r}")
         return got
 
     def parse_or(self) -> Criterion:
+        """`or := and ( "||" and )*`, grouped from the left."""
         node = self.parse_and()
         while self.peek_kind() == "OR":
             self.take()
@@ -261,6 +283,7 @@ class _Parser:
         return node
 
     def parse_and(self) -> Criterion:
+        """`and := not ( "&&" not )*`, grouped from the left."""
         node = self.parse_not()
         while self.peek_kind() == "AND":
             self.take()
@@ -268,12 +291,14 @@ class _Parser:
         return node
 
     def parse_not(self) -> Criterion:
+        """`not := "!" not | primary`."""
         if self.peek_kind() == "NOT":
             self.take()
             return Not(self.parse_not())
         return self.parse_primary()
 
     def parse_primary(self) -> Criterion:
+        """`primary := "(" criterion ")" | atom`."""
         if self.peek_kind() == "LPAREN":
             self.take()
             node = self.parse_or()
@@ -282,6 +307,7 @@ class _Parser:
         return self.parse_atom()
 
     def parse_atom(self) -> Criterion:
+        """One test: `type = T`, `[field] contains "s"`, or `field <|>|= datetime`."""
         if self.peek_kind() == "CONTAINS":
             self.take()
             needle = self.expect("STRING")[1]
@@ -310,6 +336,7 @@ class _Parser:
         raise ParseError(f"unexpected token after {value!r}")
 
     def _parse_instant(self) -> datetime:
+        """The datetime after a comparison operator; a bad value is a ParseError."""
         kind, value = self.take()
         if kind in {"TIME", "IDENT", "STRING"}:
             try:

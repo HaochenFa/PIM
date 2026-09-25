@@ -1,7 +1,9 @@
 """Create, validate, and modify the four PIR types."""
 
 import unittest
-from datetime import datetime
+from datetime import datetime, timedelta
+from unittest import mock
+from zoneinfo import ZoneInfoNotFoundError
 
 from model import (
     AbsoluteAlarm,
@@ -19,6 +21,7 @@ from model import (
 from model.pir import (
     HKT,
     PIR,
+    _hong_kong_zone,
     format_datetime,
     minute_floor,
     optional_text,
@@ -42,6 +45,13 @@ class ParseDatetimeTests(unittest.TestCase):
         """A date-only string parses to midnight Hong Kong Time on that date."""
         dt = parse_datetime("2026-11-20")
         self.assertEqual(dt, datetime(2026, 11, 20, 0, 0, tzinfo=HKT))
+
+    def test_missing_zone_database_falls_back_to_fixed_utc_plus_8(self):
+        """Without a time-zone database, Hong Kong Time is a fixed UTC+8 zone instead of a crash."""
+        with mock.patch("model.pir.ZoneInfo", side_effect=ZoneInfoNotFoundError("Asia/Hong_Kong")):
+            zone = _hong_kong_zone()
+        self.assertEqual(zone.utcoffset(None), timedelta(hours=8))
+        self.assertEqual(zone.tzname(None), "HKT")
 
     def test_invalid_datetime_is_validation_error(self):
         """An unparseable datetime string raises ValidationError."""

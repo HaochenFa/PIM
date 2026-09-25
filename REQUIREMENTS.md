@@ -1,8 +1,8 @@
 # Requirements coverage
 
-This report lists which Appendix B user stories, and which requirements in the SRS (version 1.2, `docs/deliverables/SRS.md`, rendered as `SRS.pdf`), the implementation covers. All 11 user stories, all 43 functional requirements (FR-1 – FR-43), and all 10 non-functional requirements (NFR-1 – NFR-10) are implemented, so the "Not implemented" section is empty.
+This report lists which Appendix B user stories, and which requirements in the SRS (version 1.3, `docs/deliverables/SRS.md`, rendered as `SRS.pdf`), the implementation covers. All 11 user stories, all 43 functional requirements (FR-1 – FR-43), and all 10 non-functional requirements (NFR-1 – NFR-10) are implemented, so the "Not implemented" section is empty.
 
-Evidence names the automated tests that check each row. All 330 tests pass with `python3 -m unittest` (24 Sep 2026), and the model unit tests cover 100 % of the countable lines in `model/` (`coverage.txt`).
+Evidence names the automated tests that check each row. All 333 tests pass with `python3 -m unittest` (25 Sep 2026), and the model unit tests cover 100 % of the countable lines in `model/` (`coverage.txt`).
 
 ## User stories and functional requirements
 
@@ -31,7 +31,7 @@ Evidence names the automated tests that check each row. All 330 tests pass with 
 | NFR-3 | `model` package, no import of `view` / `controller` | implemented | package layout |
 | NFR-4 | Failed command: no change, no traceback, no exit, one English message | implemented | unit, integration, and e2e error tests |
 | NFR-5 | Atomic save; failed load keeps memory; no silent loss of changes | implemented | `tests/unit/test_persist.py`, e2e quit/load tests |
-| NFR-6 | Time-zone-aware instants, HKT default | implemented | `tests/unit/test_pir.py` ParseDatetimeTests |
+| NFR-6 | Time-zone-aware instants, HKT default, fixed UTC+8 without a time-zone database | implemented | `tests/unit/test_pir.py` ParseDatetimeTests |
 | NFR-7 | 10,000 PIRs: search, alarm check, save, load each under 1 s | implemented | measured 24 Sep 2026: 2 ms, 2 ms, 44 ms, 24 ms |
 | NFR-8 | Model unit tests with `unittest`, 100 % line coverage of `model/` | implemented | `coverage.txt` |
 | NFR-9 | English prompts and specific error messages | implemented | `USER.md` Errors |

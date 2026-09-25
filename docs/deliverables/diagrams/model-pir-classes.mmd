@@ -1,3 +1,4 @@
+%%{init: {"markdownAutoWrap": false}}%%
 classDiagram
     direction TB
     class PIM {
@@ -5,18 +6,18 @@ classDiagram
         -int _next_id
         -bool _dirty
         -str _bound_path
-        +create_note(text) Note
-        +create_task(description, deadline) Task
-        +create_event(description, start, alarms) Event
-        +create_contact(name, address, mobile) Contact
-        +modify(pir_id, fields) PIR
-        +delete(pir_id) None
-        +get(pir_id) PIR
+        +create_note(text: str) Note
+        +create_task(description: str, deadline: datetime) Task
+        +create_event(description: str, start: datetime, alarms: list) Event
+        +create_contact(name: str, address: str, mobile: str) Contact
+        +modify(pir_id: int, fields: dict) PIR
+        +delete(pir_id: int) None
+        +get(pir_id: int) PIR
         +all() list~PIR~
-        +search(criterion) list~PIR~
-        +due_alarms(now) list~DueAlarm~
-        +save(path) None
-        +load(path, force) None
+        +search(criterion: Criterion) list~PIR~
+        +due_alarms(now: datetime) list~DueAlarm~
+        +save(path: str) None
+        +load(path: str, force: bool) None
         +is_dirty() bool
         +bound_path() str
     }
@@ -27,10 +28,10 @@ classDiagram
         +FIELDS tuple~FieldSpec~
         +display_name str
         +text_fields() list~str~
-        +text_value(field) str
-        +time_values(field) list~datetime~
+        +text_value(field: str) str
+        +time_values(field: str) list~datetime~
         +relevant_time() datetime
-        +modify(fields) None
+        +modify(fields: dict) None
         +to_json() dict
         +detail_lines() list
     }
@@ -55,13 +56,13 @@ classDiagram
     class RelativeAlarm {
         +int amount
         +str unit
-        +effective(start) datetime
+        +effective(start: datetime) datetime
         +to_json() dict
         +kind_label() str
     }
     class AbsoluteAlarm {
         +datetime at
-        +effective(start) datetime
+        +effective(start: datetime) datetime
         +to_json() dict
         +kind_label() str
     }

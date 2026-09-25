@@ -10,10 +10,11 @@ import os
 import sys
 from datetime import datetime
 from queue import Empty, Queue
+from typing import TYPE_CHECKING, Callable, TextIO
 
 from controller.app import HELP, STATUS_ERR, STATUS_INFO, STATUS_OK
 from controller.errors import message_for
-from model import AbsoluteAlarm, PIMError, RelativeAlarm
+from model import AbsoluteAlarm, DueAlarm, PIMError, RelativeAlarm
 from model.pir import KIND_ALARMS, KIND_DATETIME, HKT, pir_class
 from view.keys import (
     CREATE,
@@ -41,6 +42,7 @@ from view.layout import MENU, Screen, build_screen, text_lines
 from view.stdin_reader import start_stdin_reader
 from view.widgets import (
     DATETIME_FORMAT,
+    Chooser,
     DateTimePicker,
     Prompt,
     alarm_amount_chooser,
@@ -50,6 +52,9 @@ from view.widgets import (
     type_chooser,
     yes_no_chooser,
 )
+
+if TYPE_CHECKING:
+    from controller.app import App
 
 YES = {"y", "yes"}
 NO = {"n", "no"}
@@ -66,8 +71,18 @@ LOAD_PROMPT = "load path: "
 class Terminal:
     """Designed terminal: regions, field-driven wizards, in-process Alarm Alerts."""
 
-    def __init__(self, app, stdin=None, stdout=None, now=None):
-        """`now` is injected for tests; omitted means Hong Kong Time wall clock in the View only."""
+    def __init__(
+        self,
+        app: App,
+        stdin: TextIO | None = None,
+        stdout: TextIO | None = None,
+        now: datetime | Callable[[], datetime] | None = None,
+    ):
+        """`now` is injected for tests; omitted means Hong Kong Time wall clock in the View only.
+
+        `stdin` and `stdout` default to the process streams. `now` may be a fixed
+        instant or a function returning one.
+        """
         self.app = app
         self.stdin = stdin if stdin is not None else sys.stdin
         self.stdout = stdout if stdout is not None else sys.stdout
@@ -95,7 +110,7 @@ class Terminal:
             return False
         return True
 
-    def run(self):
+    def run(self) -> None:
         """Event loop. TTY uses curses; otherwise a stdin-reader thread + 500ms tick."""
         if self._use_curses():
             try:
@@ -151,7 +166,7 @@ class Terminal:
             return self._now() if callable(self._now) else self._now
         return datetime.now(HKT)
 
-    def visible_due(self):
+    def visible_due(self) -> list[DueAlarm]:
         """Due alarms minus those dismissed in this process."""
         return [item for item in self.app.due_alarms(self._now_dt()) if item.key() not in self.dismissed]
 
@@ -178,7 +193,7 @@ class Terminal:
             self._last_snapshot = snap
         return changed
 
-    def render(self):
+    def render(self) -> None:
         """Clear and redraw regions. On a TTY the cursor stays on the prompt line."""
         lines = self._layout()
         body = "\n".join(lines[:-1])
@@ -323,19 +338,19 @@ class Terminal:
     def _is_dirty_prompt(self) -> bool:
         return self._dirty_kind() in {DIRTY_QUIT, DIRTY_LOAD}
 
-    def current_chooser(self):
+    def current_chooser(self) -> Chooser | None:
         """Selector for the current prompt, or None when the answer is free text."""
         if not self._prompts:
             return None
         return self._prompts[-1].chooser
 
-    def current_picker(self):
+    def current_picker(self) -> DateTimePicker | None:
         """Calendar for a datetime prompt, or None."""
         if not self._prompts:
             return None
         return self._prompts[-1].picker
 
-    def current_browser(self):
+    def current_browser(self) -> FileBrowser | None:
         """Folder browser for a load or save-as path prompt, or None."""
         if not self._prompts:
             return None
@@ -346,7 +361,15 @@ class Terminal:
         if self._prompts:
             self._prompts[-1].browser = None
 
-    def ask(self, prompt: str, handler, kind: str | None = None, chooser=None, picker=None, browser=None):
+    def ask(
+        self,
+        prompt: str,
+        handler: Callable[[str], object],
+        kind: str | None = None,
+        chooser: Chooser | None = None,
+        picker: DateTimePicker | None = None,
+        browser: FileBrowser | None = None,
+    ) -> None:
         """Push a one-line prompt. `kind` marks dirty save/discard/cancel prompts.
 
         ``chooser`` / ``picker`` / ``browser`` are TUI widgets. The line UI still

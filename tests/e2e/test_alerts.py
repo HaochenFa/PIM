@@ -12,6 +12,7 @@ from tests.e2e.harness import clock, run_script
 
 class AlarmAlertTests(unittest.TestCase):
     def test_overdue_banner_then_dismiss_is_not_written_to_file(self):
+        """An overdue Alarm Alert shows OVERDUE; dismissing it is View-only, so the saved file still reports it due."""
         now = parse_datetime("2026-09-14T18:30:00+08:00")
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
@@ -41,6 +42,7 @@ class AlarmAlertTests(unittest.TestCase):
         self.assertTrue(loaded.due_alarms(now))
 
     def test_soon_banner_within_fifteen_minutes(self):
+        """An alarm within fifteen minutes of `now` shows a SOON Alarm Alert, not OVERDUE."""
         now = parse_datetime("2026-09-14T18:30:00+08:00")
         _app, _term, out = run_script(
             [
@@ -60,6 +62,7 @@ class AlarmAlertTests(unittest.TestCase):
         self.assertNotIn("OVERDUE", out)
 
     def test_dismiss_with_no_alarm_reports_status(self):
+        """`dismiss` with no Alarm Alert showing reports `no alarm to dismiss`."""
         _app, _term, out = run_script(["dismiss", "quit"])
         self.assertIn("no alarm to dismiss", out)
 

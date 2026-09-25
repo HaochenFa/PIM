@@ -47,7 +47,6 @@ Show only features in the SRS: no GUI, no recurrence.
 
 These do not break a requirement. Fix only if time allows; each must keep `python3 -m unittest` green.
 
-- **Two Esc presses after typing in the browser.** After `/` or Tab switches the folder browser to the typed field, the first Esc clears the pre-filled text and the second cancels the prompt. Cause: `CursesUI._escape` clears a non-empty buffer before it cancels the prompt.
 - **Wizard field titles.** Only search has a titled field (`Search — one criterion`). The other fields show the prompt label itself, for example `deadline [current] (empty keeps, none clears):`.
 - **Calendar time list.** With focus on the time list, keys the picker does not use are ignored rather than passed on.
 
@@ -63,3 +62,5 @@ These do not break a requirement. Fix only if time allows; each must keep `pytho
 | 2026-09-24 | Folder browser for load and save-as paths | PR #5 (`7f7597f`) |
 | 2026-09-24 | Folded the ADRs into decision tables in DESIGN §5 and `docs/plans/` into this file; refreshed the deliverables | PR #6 (`82bbbfe`) |
 | 2026-09-24 | Folded PRODUCT.md into the SRS, ARCHITECTURE.md into DESIGN, and ACCEPTANCE.md into the SRS and this file; deleted CONTEXT.md | branch `docs/merge-working-docs` |
+| 2026-09-25 | One Esc cancels the typed path field while the path the browser pre-filled is unedited (was two presses) | branch `fix/full-marks-polish` |
+| 2026-09-25 | Second audit against the brief: HKT falls back to fixed UTC+8 without a time-zone database; docstrings on every `model` method and every test; typed `Terminal` interface; DESIGN §3.2 tables for every public View and Controller class; a verification line for every SRS requirement; PDFs rebuilt | branch `fix/full-marks-polish` |

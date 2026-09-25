@@ -11,6 +11,7 @@ from model import Note
 
 class CursesHelperTests(unittest.TestCase):
     def test_character_actions_without_a_screen(self):
+        """`_action` maps `c` to `CREATE`, `/` to `SEARCH`, and an unmapped key to None."""
         _app, term, _out = make_terminal()
         ui = CursesUI(term, object())
         self.assertEqual(ui._action("c"), CREATE)
@@ -18,6 +19,7 @@ class CursesHelperTests(unittest.TestCase):
         self.assertIsNone(ui._action("s"))
 
     def test_type_selector_letter_submits_note(self):
+        """Pressing `n` on the create type selector submits `note` and opens the `text` prompt."""
         app, term, _out = make_terminal()
         ui = CursesUI(term, object())
         term.apply_accelerator("create")
@@ -28,6 +30,7 @@ class CursesHelperTests(unittest.TestCase):
         self.assertIsNone(term.current_chooser())
 
     def test_type_selector_arrows_then_enter(self):
+        """Two right-arrow moves highlight `event`; Enter submits it and opens the `description` prompt."""
         app, term, _out = make_terminal()
         app._result = []
         ui = CursesUI(term, object())
@@ -41,6 +44,7 @@ class CursesHelperTests(unittest.TestCase):
         self.assertIn("description", term._prompt_label())
 
     def test_delete_selector_enter_on_default_cancels(self):
+        """Enter on the delete confirmation's default option cancels without calling `delete`."""
         app, term, _out = make_terminal()
         app._selected = Note(1, "x")
         ui = CursesUI(term, object())
@@ -51,6 +55,7 @@ class CursesHelperTests(unittest.TestCase):
         self.assertNotIn(("delete",), app.calls)
 
     def test_escape_clears_typed_command_not_running_flag(self):
+        """Esc on a typed command clears the buffer and status but leaves the run loop's `_running` flag set."""
         app, term, _out = make_terminal()
         term._running = True
         ui = CursesUI(term, object())
@@ -64,6 +69,7 @@ class CursesHelperTests(unittest.TestCase):
         self.assertTrue(term._running)
 
     def test_search_syntax_error_keeps_the_typed_line(self):
+        """A search syntax error re-opens the `criterion:` prompt with the invalid line still typed."""
         app, term, _out = make_terminal()
 
         def bad_search(line):
@@ -82,6 +88,7 @@ class CursesHelperTests(unittest.TestCase):
         self.assertEqual(app.status_kind, "err")
 
     def test_idle_escape_clears_an_active_search(self):
+        """With no prompt open, Esc during an active search calls `clear` and drops the criterion."""
         app, term, _out = make_terminal()
         app._criterion = True
         app._criterion_line = "type = note"
@@ -91,6 +98,7 @@ class CursesHelperTests(unittest.TestCase):
         self.assertFalse(app.has_criterion())
 
     def test_idle_escape_without_search_does_not_quit(self):
+        """With no prompt and no active search, Esc leaves the run loop running and calls no command."""
         app, term, _out = make_terminal()
         term._running = True
         ui = CursesUI(term, object())
@@ -242,6 +250,29 @@ class BrowserKeyTests(unittest.TestCase):
         self.assertTrue(self.ui._handle_browser_key("\x1b"))
         self.assertIsNone(self.term.current_browser())
         self.assertEqual(self.app.status, "command cancelled")
+        self.assertNotIn("load", [call[0] for call in self.app.calls])
+
+    def test_one_escape_cancels_an_unedited_prefilled_path(self):
+        """After `/` or Tab, one Esc cancels the load while the pre-filled path is unchanged."""
+        for key in ("/", "\t"):
+            self.term.apply_accelerator("load")
+            self.ui._handle_browser_key(key)
+            self.ui._handle_key("\x1b")
+            self.assertEqual(self.term._prompt_label(), "> ")
+            self.assertEqual(self.ui.buffer, "")
+            self.assertEqual(self.app.status, "command cancelled")
+        self.assertNotIn("load", [call[0] for call in self.app.calls])
+
+    def test_escape_after_editing_the_path_clears_it_first(self):
+        """After the typed path is edited, the first Esc clears it and keeps the prompt; the second cancels."""
+        self.term.apply_accelerator("load")
+        self.ui._handle_browser_key("/")
+        self.ui._handle_key("t")
+        self.ui._handle_key("\x1b")
+        self.assertEqual(self.ui.buffer, "")
+        self.assertEqual(self.term._prompt_label(), "load path: ")
+        self.ui._handle_key("\x1b")
+        self.assertEqual(self.term._prompt_label(), "> ")
         self.assertNotIn("load", [call[0] for call in self.app.calls])
 
     def test_browser_key_without_a_browser_is_not_consumed(self):

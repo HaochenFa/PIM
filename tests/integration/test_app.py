@@ -19,6 +19,7 @@ def ids_of(app: App):
 
 class AppCreateModifyDeleteTests(unittest.TestCase):
     def test_create_four_types_selects_and_lists_them(self):
+        """US1: creating one of each PIR type selects the last one, lists all four, and leaves it dirty."""
         app = App(PIM())
         note = app.create("note", {"text": "Shopping: Milk"})
         self.assertEqual(note.id, 1)
@@ -38,6 +39,7 @@ class AppCreateModifyDeleteTests(unittest.TestCase):
         self.assertIsNone(app.bound_path())
 
     def test_failed_create_sets_status_and_does_not_mutate(self):
+        """A blank required `text` and an unknown type `series` both fail atomically: nothing is created."""
         app = App(PIM())
         self.assertIsNone(app.create("note", {"text": "  "}))
         self.assertIn("required", app.status.casefold())
@@ -48,6 +50,7 @@ class AppCreateModifyDeleteTests(unittest.TestCase):
         self.assertEqual(app.pim.all(), [])
 
     def test_modify_keeps_id_empty_fields_are_noop(self):
+        """US4: `modify` keeps the Id and only changes supplied fields; an empty modify reports `No changes`."""
         app = App(make_fixture())
         app.select_id(1)
         updated = app.modify({"text": "Shopping: Bread"})
@@ -63,6 +66,7 @@ class AppCreateModifyDeleteTests(unittest.TestCase):
         self.assertEqual(app.status, "No changes")
 
     def test_modify_without_selection_or_unknown_type_change_fails(self):
+        """Modify with no Selection fails with `no PIR selected`; modify cannot change a PIR's type."""
         app = App(make_fixture())
         self.assertIsNone(app.modify({"text": "x"}))
         self.assertEqual(app.status, "no PIR selected")
@@ -72,6 +76,7 @@ class AppCreateModifyDeleteTests(unittest.TestCase):
         self.assertEqual(app.pim.get(1).text, "Shopping: Milk")
 
     def test_delete_selected_and_missing_selection(self):
+        """US5: delete with no Selection fails; deleting Id 2 clears the Selection and never reuses its Id."""
         app = App(make_fixture())
         self.assertFalse(app.delete_selected())
         self.assertEqual(app.status, "no PIR selected")
@@ -86,6 +91,7 @@ class AppCreateModifyDeleteTests(unittest.TestCase):
 
 class AppSearchPrintSelectTests(unittest.TestCase):
     def test_search_replaces_current_result_clear_restores_all(self):
+        """US7: search replaces Current Result with the matches and selects the first hit; `clear` restores all six."""
         app = App(make_fixture())
         app.search("type = contact && name contains \"ada\"")
         self.assertEqual(ids_of(app), [5, 6])
@@ -99,6 +105,7 @@ class AppSearchPrintSelectTests(unittest.TestCase):
         self.assertEqual(app.status, "Search cleared")
 
     def test_illegal_criterion_leaves_current_result(self):
+        """A syntax error in `search` reports `search syntax error` and leaves Current Result and Selection unchanged."""
         app = App(make_fixture())
         app.search("type = note")
         self.assertEqual(ids_of(app), [1])
@@ -109,6 +116,7 @@ class AppSearchPrintSelectTests(unittest.TestCase):
         self.assertIn("search syntax error", app.status)
 
     def test_select_row_is_not_identity(self):
+        """Row numbers address a Current Result position, not an Id; a bad row or Id reports a specific error."""
         app = App(make_fixture())
         app.search("type = contact")
         app.select_row(1)
@@ -125,6 +133,7 @@ class AppSearchPrintSelectTests(unittest.TestCase):
         self.assertEqual(app.selected_id(), 4)
 
     def test_print_all_uses_current_result_not_the_collection(self):
+        """`print all` prints Current Result only; `print` prints the Selection; `clear` empties the print text."""
         app = App(make_fixture())
         app.search("type = note")
         text = app.print_all()
@@ -139,16 +148,19 @@ class AppSearchPrintSelectTests(unittest.TestCase):
         self.assertEqual(app.print_text, "")
 
     def test_print_without_selection_fails(self):
+        """`print` with no Selection fails with `no PIR selected`."""
         app = App(make_fixture())
         self.assertIsNone(app.print_selected())
         self.assertEqual(app.status, "no PIR selected")
 
     def test_print_all_empty_current_result(self):
+        """`print all` on an empty Current Result reports `(Current Result is empty)`."""
         app = App(PIM())
         text = app.print_all()
         self.assertEqual(text, "(Current Result is empty)")
 
     def test_selection_cleared_when_pir_leaves_search_hits(self):
+        """Modifying the Selection so it no longer matches the active criterion clears Selection and Current Result."""
         app = App(make_fixture())
         app.select_id(1)
         app.search("type = task")
@@ -161,6 +173,7 @@ class AppSearchPrintSelectTests(unittest.TestCase):
         self.assertEqual(ids_of(app), [])
 
     def test_due_alarms_passthrough_and_help_constant(self):
+        """`due_alarms` passes the injected `now` through to the PIM, and `HELP` lists `create` among the commands."""
         app = App(make_fixture())
         now = parse_datetime("2026-09-13T09:00:00+08:00")
         due = app.due_alarms(now)
@@ -177,6 +190,7 @@ class AppPersistTests(unittest.TestCase):
         self.tmpdir.cleanup()
 
     def test_save_appends_pim_and_load_round_trips(self):
+        """US10/US11: save appends `.pim` and clears dirty; a fresh App's `load` reads all six PIRs back."""
         app = App(make_fixture())
         target = app.save_target(self.dir / "demo")
         self.assertTrue(str(target).endswith(".pim"))
@@ -190,6 +204,7 @@ class AppPersistTests(unittest.TestCase):
         self.assertEqual(other.status, f"Loaded {self.dir / 'demo.pim'}")
 
     def test_save_without_bound_file_fails(self):
+        """Saving with no Bound File and no path fails, and the status line tells the caller to `save as`."""
         app = App(PIM())
         app.create("note", {"text": "x"})
         self.assertFalse(app.save())
@@ -205,6 +220,7 @@ class AppPersistTests(unittest.TestCase):
         self.assertTrue(app.is_dirty())
 
     def test_load_rejects_other_extension_and_corrupt_file(self):
+        """Loading a `.json` file, then a corrupt `.pim` file, both fail and leave the Working Collection untouched."""
         app = App(make_fixture())
         other = self.dir / "demo.json"
         other.write_text("{}", encoding="utf-8")
@@ -217,6 +233,7 @@ class AppPersistTests(unittest.TestCase):
         self.assertEqual(app.pim.get(1).text, "Shopping: Milk")
 
     def test_dirty_load_without_force_fails_force_discards(self):
+        """Loading while dirty fails without `force`; forced load discards edits, Selection, search, and print text."""
         app = App(make_fixture())
         path = self.dir / "ok.pim"
         self.assertTrue(app.save(path))
@@ -232,6 +249,7 @@ class AppPersistTests(unittest.TestCase):
         self.assertEqual(app.print_text, "")
 
     def test_would_overwrite_only_another_existing_file(self):
+        """`would_overwrite` is true for an existing file that is not the Bound File, false for it and for a missing path."""
         app = App(PIM())
         existing = self.dir / "a.pim"
         existing.write_text("{}", encoding="utf-8")
@@ -246,6 +264,7 @@ class AppPersistTests(unittest.TestCase):
         self.assertFalse(app.would_overwrite(missing))
 
     def test_would_overwrite_falls_back_when_resolve_fails(self):
+        """When `Path.resolve` raises OSError, `would_overwrite` falls back to a direct comparison with the Bound File."""
         app = App(make_fixture())
         path = self.dir / "x.pim"
         app.save(path)

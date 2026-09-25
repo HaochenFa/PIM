@@ -48,6 +48,7 @@ def fixture_lines():
 
 class CreateModifySearchPrintDeleteTests(unittest.TestCase):
     def test_create_four_types_and_empty_required_field_fails(self):
+        """US1: a whitespace-only `text` fails create atomically; the four PIR types then create in order with stable Ids."""
         app, _term, out = run_script(
             [
                 "create note",
@@ -77,6 +78,7 @@ class CreateModifySearchPrintDeleteTests(unittest.TestCase):
         self.assertEqual(app.pim.get(4).type_name, "contact")
 
     def test_modify_empty_enter_keeps_values_and_no_selection_fails(self):
+        """US4: `modify` with no Selection fails with `no PIR selected`; an empty prompt on a Selection reports `No changes`."""
         app, _term, out = run_script(
             [
                 "modify",
@@ -93,6 +95,7 @@ class CreateModifySearchPrintDeleteTests(unittest.TestCase):
         self.assertIn("No changes", out)
 
     def test_search_fixture_criteria_and_syntax_error_leaves_list(self):
+        """US7: `&&` and a time comparison narrow Current Result; a later syntax error leaves the prior Current Result."""
         app, _term, out = run_script(
             [
                 *fixture_lines(),
@@ -108,6 +111,7 @@ class CreateModifySearchPrintDeleteTests(unittest.TestCase):
         self.assertNotIn(3, result_ids(app))
 
     def test_print_requires_selection_print_all_is_current_result(self):
+        """US8: `print` with no Selection fails; `print all` prints Current Result; `print` after selecting a row prints that PIR."""
         app, _term, out = run_script(
             [
                 *fixture_lines(),
@@ -125,6 +129,7 @@ class CreateModifySearchPrintDeleteTests(unittest.TestCase):
         self.assertIn("Printed Id 1", out)
 
     def test_delete_no_keeps_yes_removes_and_id_is_not_reused(self):
+        """US5: `delete` with `n` cancels and keeps the PIR; `y` removes it and its Id is never reused by a later create."""
         app, _term, out = run_script(
             [
                 *fixture_lines(),
@@ -146,6 +151,7 @@ class CreateModifySearchPrintDeleteTests(unittest.TestCase):
         self.assertNotEqual(created.id, 2)
 
     def test_unknown_command_does_not_mutate(self):
+        """An unrecognised command reports `unknown command: explode` and leaves the collection unchanged."""
         app, _term, out = run_script(
             [
                 *fixture_lines(),
@@ -167,6 +173,7 @@ class StoreLoadDirtyTests(unittest.TestCase):
         self.tmpdir.cleanup()
 
     def test_save_as_appends_pim_and_load_rejects_other_extension(self):
+        """US10/US11: `save as` appends `.pim` and clears dirty; `load` of a `.json` file is rejected, collection unchanged."""
         dest = self.dir / "demo"
         other = self.dir / "demo.json"
         other.write_text("{}", encoding="utf-8")
@@ -184,6 +191,7 @@ class StoreLoadDirtyTests(unittest.TestCase):
         self.assertEqual(len(app.pim.all()), 6)
 
     def test_dirty_quit_cancel_then_discard(self):
+        """A dirty `quit` asks save/discard/cancel; `cancel` keeps the session running with the PIR intact."""
         app, _term, out = run_script(
             [
                 "create note",
@@ -199,6 +207,7 @@ class StoreLoadDirtyTests(unittest.TestCase):
         self.assertEqual(app.pim.get(1).text, "keep me")
 
     def test_dirty_load_cancel_leaves_working_collection(self):
+        """A dirty `load` asks save/discard/cancel; `cancel` reports `load cancelled` and keeps the unsaved Working Collection."""
         saved = self.dir / "ok.pim"
         seed = PIM()
         seed.create_note("from file")
@@ -217,6 +226,7 @@ class StoreLoadDirtyTests(unittest.TestCase):
         self.assertEqual(app.pim.get(1).text, "unsaved")
 
     def test_dirty_load_discard_replaces_collection(self):
+        """A dirty `load` followed by `discard` replaces the Working Collection with the loaded file's PIRs."""
         saved = self.dir / "ok.pim"
         seed = PIM()
         seed.create_note("from file")
@@ -234,6 +244,7 @@ class StoreLoadDirtyTests(unittest.TestCase):
         self.assertIn("Loaded", out)
 
     def test_save_as_overwrite_confirm_yes(self):
+        """Confirming the overwrite prompt with `y` on `save as` an existing file replaces its contents and clears dirty."""
         existing = self.dir / "taken.pim"
         existing.write_text('{"format":"pim/v1","next_id":1,"pirs":[]}\n', encoding="utf-8")
         app, _term, out = run_script(
@@ -254,6 +265,7 @@ class StoreLoadDirtyTests(unittest.TestCase):
 
 class ModifyEventStartTests(unittest.TestCase):
     def test_changing_start_moves_relative_not_absolute(self):
+        """Modifying an Event's `start` shifts its relative alarms with it but leaves the absolute alarm's time fixed."""
         app, _term, _out = run_script(
             [
                 *fixture_lines(),

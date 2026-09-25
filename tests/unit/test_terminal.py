@@ -192,12 +192,14 @@ def feed(term: Terminal, *lines: str) -> None:
 
 class CommandDispatchTests(unittest.TestCase):
     def test_blank_line_is_ignored(self):
+        """An empty or whitespace-only line produces no App call and no status."""
         app, term, _out = make_terminal()
         feed(term, "", "   ")
         self.assertEqual(app.calls, [])
         self.assertEqual(app.status, "")
 
     def test_help_clear_print_and_aliases(self):
+        """`help`, `clear`, `print`/`print all`, row and `id` shortcuts, and quit aliases `q`/`exit` all dispatch."""
         app, term, _out = make_terminal()
         feed(term, "help")
         self.assertIn("create", app.status)
@@ -222,6 +224,7 @@ class CommandDispatchTests(unittest.TestCase):
         self.assertFalse(term2._running)
 
     def test_unknown_command_and_non_print_clears_print_text(self):
+        """A non-print command clears the print buffer; an unrecognized command sets "unknown command"."""
         app, term, _out = make_terminal()
         app.print_text = "keep"
         feed(term, "print")
@@ -232,6 +235,7 @@ class CommandDispatchTests(unittest.TestCase):
         self.assertEqual(app.status, "unknown command: explode")
 
     def test_search_inline_or_prompted(self):
+        """`search <criterion>` runs immediately; bare `search` prompts for the criterion line."""
         app, term, _out = make_terminal()
         feed(term, "search type = note")
         self.assertEqual(app.calls[-1], ("search", "type = note"))
@@ -243,6 +247,7 @@ class CommandDispatchTests(unittest.TestCase):
 
 class CreateModifyWizardTests(unittest.TestCase):
     def test_create_prompts_for_type_then_fields(self):
+        """Bare `create` prompts for a type, then for its fields, before calling `App.create`."""
         app, term, _out = make_terminal()
         feed(term, "create")
         self.assertIn("type", term._prompt_label())
@@ -250,11 +255,13 @@ class CreateModifyWizardTests(unittest.TestCase):
         self.assertEqual(app.calls[-1], ("create", "note", {"text": "Shopping: Milk"}))
 
     def test_create_unknown_type_sets_status(self):
+        """`create series` sets "unknown PIR type: series" without calling `App.create`."""
         app, term, _out = make_terminal()
         feed(term, "create series")
         self.assertEqual(app.status, "unknown PIR type: series")
 
     def test_create_task_skips_empty_optional_deadline(self):
+        """An empty optional `deadline` answer during `create task` is omitted from the submitted fields."""
         app, term, _out = make_terminal()
         feed(term, "create task", "Inbox", "")
         kind, type_name, fields = app.calls[-1]
@@ -262,17 +269,20 @@ class CreateModifyWizardTests(unittest.TestCase):
         self.assertEqual(fields, {"description": "Inbox"})
 
     def test_modify_without_selection_fails(self):
+        """`modify` with no Selection sets "no PIR selected" without prompting for fields."""
         app, term, _out = make_terminal()
         feed(term, "modify")
         self.assertEqual(app.status, "no PIR selected")
 
     def test_modify_empty_enter_omits_field(self):
+        """Pressing Enter on a `modify` field prompt omits that field from the submitted changes."""
         app, term, _out = make_terminal()
         app._selected = Note(1, "old")
         feed(term, "modify", "")
         self.assertEqual(app.calls[-1], ("modify", {}))
 
     def test_delete_yes_and_no(self):
+        """`delete` cancels on "n" and calls `App.delete_selected` on "y"."""
         app, term, _out = make_terminal()
         app._selected = Note(1, "x")
         feed(term, "delete", "n")
@@ -284,6 +294,7 @@ class CreateModifyWizardTests(unittest.TestCase):
 
 class AlarmWizardTests(unittest.TestCase):
     def test_create_event_with_relative_and_absolute_alarms(self):
+        """Creating an Event can add both a relative and an absolute alarm before answering "n" to stop."""
         app, term, _out = make_terminal()
         feed(
             term,
@@ -305,6 +316,7 @@ class AlarmWizardTests(unittest.TestCase):
         self.assertEqual(fields["alarms"][0].amount, 1)
 
     def test_invalid_alarm_kind_sets_status(self):
+        """An alarm kind that is neither "relative" nor "absolute" sets "enter relative or absolute"."""
         app, term, _out = make_terminal()
         feed(
             term,
@@ -317,6 +329,7 @@ class AlarmWizardTests(unittest.TestCase):
         self.assertEqual(app.status, "enter relative or absolute")
 
     def test_alarm_kind_amount_and_unit_errors_retry(self):
+        """Invalid alarm kind, non-numeric amount, negative amount, and unknown unit each retry the prompt."""
         app, term, _out = make_terminal()
         feed(
             term,
@@ -341,6 +354,7 @@ class AlarmWizardTests(unittest.TestCase):
         self.assertEqual(fields["alarms"][0].amount, 0)
 
     def test_replace_alarms_yes_no_and_invalid(self):
+        """The "replace alarms?" prompt retries on an invalid answer; only "y" adds an `alarms` field."""
         app, term, _out = make_terminal()
         app._selected = Event(4, "lecture", "2026-09-14T18:30:00+08:00", [RelativeAlarm(0, "minute")])
         app.modified = app._selected
@@ -352,6 +366,7 @@ class AlarmWizardTests(unittest.TestCase):
         self.assertIn("alarms", app.calls[-1][1])
 
     def test_modify_alarms_forgets_dismissed_for_that_id(self):
+        """Replacing an Event's alarms during `modify` clears dismissed-alarm memory for that Id only."""
         app, term, _out = make_terminal()
         event = Event(4, "lecture", "2026-09-14T18:30:00+08:00")
         app._selected = event
@@ -436,6 +451,7 @@ class BrowserPromptTests(unittest.TestCase):
 
 class SaveLoadQuitTests(unittest.TestCase):
     def test_save_asks_path_when_untitled(self):
+        """Bare `save` with no Bound File prompts "save as path: " and then saves the typed path."""
         app, term, _out = make_terminal()
         feed(term, "save")
         self.assertEqual(term._prompt_label(), "save as path: ")
@@ -443,6 +459,7 @@ class SaveLoadQuitTests(unittest.TestCase):
         self.assertEqual(app.calls[-1], ("save", "/tmp/demo"))
 
     def test_save_as_empty_path_and_overwrite_cancel(self):
+        """`save as` requires a non-empty path, and overwriting an existing file needs "y" confirmation."""
         app, term, _out = make_terminal()
         feed(term, "save as")
         feed(term, "")
@@ -454,6 +471,7 @@ class SaveLoadQuitTests(unittest.TestCase):
         self.assertEqual(app.calls[-1], ("save", "/tmp/taken.pim"))
 
     def test_load_empty_path_and_dirty_cancel(self):
+        """`load` requires a non-empty path, and answering "cancel" on a dirty session cancels the load."""
         app, term, _out = make_terminal()
         feed(term, "load")
         feed(term, "")
@@ -463,6 +481,7 @@ class SaveLoadQuitTests(unittest.TestCase):
         self.assertEqual(app.status, "load cancelled")
 
     def test_dirty_quit_save_discard_and_invalid_choice(self):
+        """Dirty `quit` retries on an invalid choice; "cancel" keeps running; "discard" quits unsaved."""
         app, term, _out = make_terminal()
         app._dirty = True
         term._running = True
@@ -475,6 +494,7 @@ class SaveLoadQuitTests(unittest.TestCase):
         self.assertFalse(term._running)
 
     def test_dirty_quit_save_with_bound_file(self):
+        """Dirty `quit` answered "s" saves to the existing Bound File and then quits."""
         app, term, _out = make_terminal()
         app._dirty = True
         app._bound = "/tmp/x.pim"
@@ -484,6 +504,7 @@ class SaveLoadQuitTests(unittest.TestCase):
         self.assertEqual(app.calls[-1], ("save", None))
 
     def test_eof_during_wizard_cancels_command(self):
+        """EOF during a `create` wizard cancels the command, clears prompts, and stops the session."""
         app, term, _out = make_terminal()
         term._running = True
         feed(term, "create")
@@ -493,12 +514,14 @@ class SaveLoadQuitTests(unittest.TestCase):
         self.assertEqual(term._prompts, [])
 
     def test_interrupt_on_clean_session_stops(self):
+        """Ctrl-C (interrupt) on a clean session stops the Terminal immediately."""
         app, term, _out = make_terminal()
         term._running = True
         term._handle_interrupt()
         self.assertFalse(term._running)
 
     def test_eof_on_dirty_non_tty_stops(self):
+        """EOF while the dirty-quit prompt is open still stops the Terminal and reports "unsaved changes"."""
         app, term, _out = make_terminal()
         app._dirty = True
         term._running = True
@@ -508,6 +531,7 @@ class SaveLoadQuitTests(unittest.TestCase):
         self.assertIn("unsaved changes", app.status)
 
     def test_load_failed_does_not_clear_dismissed(self):
+        """A failed `load` leaves dismissed alarms untouched; a successful `load` clears them."""
         app, term, _out = make_terminal()
         term.dismissed.add((1, 0))
         app.load_ok = False
@@ -537,6 +561,7 @@ class UnexpectedErrorTests(unittest.TestCase):
 
 class LayoutAndPaintTests(unittest.TestCase):
     def test_layout_empty_untitled_and_menu(self):
+        """`_layout` for an empty, untitled session shows placeholder rows and the menu."""
         _app, term, _out = make_terminal()
         lines = term._layout()
         self.assertTrue(lines[0].startswith("PIM  untitled"))
@@ -547,6 +572,7 @@ class LayoutAndPaintTests(unittest.TestCase):
         self.assertIn(MENU, lines)
 
     def test_layout_truncates_long_name_and_marks_selection(self):
+        """`_layout` truncates a long name, marks a dirty Bound File with `*`, and shows the selected row."""
         app, term, _out = make_terminal()
         note = Note(1, "abcdefghijklmnopqrstuvwxyz extra")
         app._result = [note]
@@ -566,6 +592,7 @@ class LayoutAndPaintTests(unittest.TestCase):
         self.assertIn("PRINT", joined)
 
     def test_dismiss_first_due_alarm(self):
+        """`dismiss` dismisses the first due alarm and reports "no alarm to dismiss" once none remain."""
         app, term, _out = make_terminal()
         app._due = [FakeDue()]
         feed(term, "dismiss")
@@ -575,6 +602,7 @@ class LayoutAndPaintTests(unittest.TestCase):
         self.assertEqual(app.status, "no alarm to dismiss")
 
     def test_paint_skips_unchanged_snapshot(self):
+        """`_paint` writes when the snapshot changes and writes nothing when called again unchanged."""
         _app, term, out = make_terminal()
         term.render()
         before = out.getvalue()
@@ -585,11 +613,13 @@ class LayoutAndPaintTests(unittest.TestCase):
         self.assertEqual(out.getvalue(), after_first)
 
     def test_tty_render_writes_ansi_clear(self):
+        """On a TTY, `render` writes the ANSI clear-screen and home sequence before the layout."""
         _app, term, out = make_terminal(tty=True)
         term.render()
         self.assertIn("\033[2J\033[H", out.getvalue())
 
     def test_now_datetime_callable_and_wall_clock(self):
+        """`_now_dt` accepts a fixed datetime or a zero-arg callable, else falls back to the wall clock in HKT."""
         instant = parse_datetime("2026-09-14T18:30:00+08:00")
         _app, term, _out = make_terminal(now=instant)
         self.assertEqual(term._now_dt(), instant)
@@ -600,6 +630,7 @@ class LayoutAndPaintTests(unittest.TestCase):
         self.assertEqual(term3._now_dt().tzinfo, HKT)
 
     def test_interrupt_during_dirty_prompt_asks_again(self):
+        """Ctrl-C while the dirty-quit prompt is open re-asks save/discard/cancel instead of quitting."""
         app, term, _out = make_terminal()
         app._dirty = True
         feed(term, "quit")
@@ -609,6 +640,7 @@ class LayoutAndPaintTests(unittest.TestCase):
 
 class AcceleratorAndCursesGateTests(unittest.TestCase):
     def test_arrows_move_selection_in_current_result(self):
+        """`select_down`/`select_up`/`select_first`/`select_last` move the Selection through the Current Result."""
         app, term, _out = make_terminal()
         app._result = [Note(1, "a"), Note(2, "b"), Note(3, "c")]
         term.apply_accelerator("select_down")
@@ -624,11 +656,13 @@ class AcceleratorAndCursesGateTests(unittest.TestCase):
         self.assertEqual(app.selected_id(), 1)
 
     def test_empty_result_move_sets_status(self):
+        """Moving the selection when the Current Result is empty sets "Current Result is empty"."""
         app, term, _out = make_terminal()
         term.apply_accelerator("select_down")
         self.assertEqual(app.status, "Current Result is empty")
 
     def test_save_accelerator_asks_path_when_untitled(self):
+        """The `save` accelerator with no Bound File prompts for "save as path: " instead of saving."""
         app, term, _out = make_terminal()
         term.apply_accelerator("save")
         self.assertEqual(term._prompt_label(), "save as path: ")
@@ -664,6 +698,7 @@ class AcceleratorAndCursesGateTests(unittest.TestCase):
         self.assertEqual(app.calls[-1], ("load", "/tmp/work.pim", True))
 
     def test_create_and_search_accelerators_open_prompts(self):
+        """`create` and `search` accelerators open their prompts, and `cancel_prompt` cancels a pending one."""
         app, term, _out = make_terminal()
         term.apply_accelerator("create")
         self.assertIn("type", term._prompt_label())
@@ -674,16 +709,19 @@ class AcceleratorAndCursesGateTests(unittest.TestCase):
         self.assertEqual(term._prompt_label(), "criterion: ")
 
     def test_slash_verbs_still_work_after_cancel(self):
+        """After the `search` accelerator opens a prompt, a typed criterion line still runs the search."""
         app, term, _out = make_terminal()
         term.apply_accelerator("search")
         feed(term, "type = note")
         self.assertEqual(app.calls[-1], ("search", "type = note"))
 
     def test_use_curses_false_when_not_a_tty(self):
+        """`_use_curses` is false when stdin and stdout are not TTYs."""
         _app, term, _out = make_terminal()
         self.assertFalse(term._use_curses())
 
     def test_use_curses_false_when_env_disables_it(self):
+        """`_use_curses` is false when `PIM_NO_CURSES` is set, even though stdin/stdout report as a TTY."""
         import os
 
         class Tty:
@@ -703,6 +741,7 @@ class AcceleratorAndCursesGateTests(unittest.TestCase):
                 os.environ["PIM_NO_CURSES"] = previous
 
     def test_esc_on_dirty_prompt_does_not_drop_changes(self):
+        """Esc on the dirty-quit prompt keeps the prompt open and the session running, not discarded."""
         app, term, _out = make_terminal()
         app._dirty = True
         term._running = True

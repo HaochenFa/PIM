@@ -96,6 +96,8 @@ class CursesUI:
         self.stdscr = stdscr
         self.buffer = ""
         self.cursor = 0
+        # Text the typed path field was pre-filled with, until it is submitted or cancelled.
+        self._prefill: str | None = None
         self.raw_command = False
         self.show_help = False
         self.print_open = False
@@ -816,6 +818,7 @@ class CursesUI:
         self.term.type_path_instead()
         self.buffer = prefill
         self.cursor = len(prefill)
+        self._prefill = prefill
 
     def _picker_submit(self, value: str) -> None:
         self.buffer = ""
@@ -892,6 +895,7 @@ class CursesUI:
     def _submit(self) -> None:
         line = self.buffer
         was_search = self._is_search_prompt()
+        self._prefill = None
         self.buffer = ""
         self.cursor = 0
         self.raw_command = False
@@ -909,6 +913,15 @@ class CursesUI:
     def _escape(self) -> None:
         if self.print_open:
             self.print_open = False
+            return
+        prefilled = self._prefill is not None and self.buffer == self._prefill
+        self._prefill = None
+        if prefilled and self.term._prompts:
+            # The path the browser pre-filled was never edited, so there is
+            # nothing of the user's to clear: one Esc cancels the prompt.
+            self.buffer = ""
+            self.cursor = 0
+            self._safe(self.term.cancel_prompt)
             return
         if self.buffer or self.raw_command:
             self.buffer = ""

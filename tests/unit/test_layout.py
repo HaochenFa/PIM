@@ -36,6 +36,7 @@ class FakeDue:
 
 class ScreenBuildTests(unittest.TestCase):
     def test_empty_untitled_text_lines_match_fallback(self):
+        """With no bound file, no due alarms, no Current Result, and no Selection, the fallback text renders each empty state."""
         screen = build_screen(
             bound_path=None,
             dirty=False,
@@ -58,6 +59,7 @@ class ScreenBuildTests(unittest.TestCase):
         self.assertEqual(lines[-1], "> ")
 
     def test_selection_truncation_dirty_and_print(self):
+        """A bound dirty file shows a `*`, an OVERDUE banner with `(dismiss)`, a truncated `...` Note text, and a PRINT block."""
         note = Note(1, "abcdefghijklmnopqrstuvwxyz extra")
         screen = build_screen(
             bound_path="/tmp/demo.pim",
@@ -83,6 +85,7 @@ class ScreenBuildTests(unittest.TestCase):
 
 class GeometryTests(unittest.TestCase):
     def test_wide_terminal_is_side_by_side(self):
+        """At 80 columns the list and detail panes sit side by side, not stacked, with a positive list height."""
         geo = compute_geometry(24, 80)
         self.assertFalse(geo.too_small)
         self.assertFalse(geo.stacked)
@@ -93,6 +96,7 @@ class GeometryTests(unittest.TestCase):
         self.assertEqual(geo.status_y, 21)
 
     def test_selector_composer_shrinks_the_body(self):
+        """A taller composer (a chooser open) raises the status row and shrinks the list pane height."""
         idle = compute_geometry(24, 80, 2)
         choosing = compute_geometry(24, 80, 3)
         self.assertEqual(choosing.composer_h, 3)
@@ -100,6 +104,7 @@ class GeometryTests(unittest.TestCase):
         self.assertLess(choosing.list_h, idle.list_h)
 
     def test_narrow_terminal_stacks_list_above_detail(self):
+        """Below `WIDE_WIDTH` columns the layout stacks the list above the detail pane, both starting at column 0."""
         geo = compute_geometry(24, 70)
         self.assertFalse(geo.too_small)
         self.assertTrue(geo.stacked)
@@ -108,12 +113,14 @@ class GeometryTests(unittest.TestCase):
         self.assertEqual(geo.detail_x, 0)
 
     def test_tiny_terminal_is_flagged(self):
+        """A terminal shorter than `MIN_HEIGHT` or narrower than `MIN_WIDTH` sets `too_small`."""
         geo = compute_geometry(MIN_HEIGHT - 1, 80)
         self.assertTrue(geo.too_small)
         geo = compute_geometry(24, MIN_WIDTH - 1)
         self.assertTrue(geo.too_small)
 
     def test_list_row_uses_a_type_pin_and_time_gutter(self):
+        """A Current Result row shows the type pin (not the word `event`), the Display Name, and a `>` selection marker."""
         row = ResultRow(1, 4, "event", "COMP3211 lecture", "2026-09-14 18:30", "2026-09-14 18:30", True)
         line = format_list_row(row, 60, short_time_col=True)
         self.assertIn(TYPE_PIN["event"], line)
@@ -125,15 +132,18 @@ class GeometryTests(unittest.TestCase):
         self.assertIn("Time", header)
 
     def test_missing_time_is_a_dot(self):
+        """A Contact row, which has no time field, renders the time gutter as a `·` placeholder."""
         row = ResultRow(1, 5, "contact", "Ada", "", "", False)
         line = format_list_row(row, 50, short_time_col=True)
         self.assertIn("·", line)
 
     def test_card_fields_drop_id_and_type(self):
+        """`card_fields` filters `Id` and `type` out of the detail card, keeping the remaining fields."""
         fields = card_fields((("Id", "4"), ("type", "event"), ("start", "t")))
         self.assertEqual(fields, (("start", "t"),))
 
     def test_list_title_includes_criterion_and_scroll(self):
+        """When a search is active, both `screen.filter_label` and the list pane title show the criterion text."""
         note = Note(1, "x")
         screen = build_screen(
             bound_path=None,
@@ -153,9 +163,11 @@ class GeometryTests(unittest.TestCase):
         self.assertIn("type = note", title)
 
     def test_time_slots_start_below_weekday_header(self):
+        """The picker's time-slot row is positioned below its weekday header row."""
         self.assertGreater(picker_time_origin(10), picker_weekday_row(10))
 
     def test_visible_window_keeps_selection_in_view(self):
+        """`visible_list_window` scrolls just enough to keep the selected row visible, and starts at 0 with no selection."""
         self.assertEqual(visible_list_window(3, 1, 10), 0)
         self.assertEqual(visible_list_window(20, 19, 5), 15)
         self.assertEqual(visible_list_window(20, None, 5), 0)

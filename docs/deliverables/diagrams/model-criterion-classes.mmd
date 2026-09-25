@@ -1,8 +1,9 @@
+%%{init: {"markdownAutoWrap": false}}%%
 classDiagram
     direction TB
     class Criterion {
         <<abstract>>
-        +matches(pir) bool
+        +matches(pir: PIR) bool
     }
     class TypeIs {
         +str type_name
@@ -44,7 +45,7 @@ classDiagram
     class ExtensionError
     class parse_criterion {
         <<function>>
-        +parse_criterion(text) Criterion
+        +parse_criterion(text: str) Criterion
     }
     Criterion <|-- TypeIs
     Criterion <|-- Contains

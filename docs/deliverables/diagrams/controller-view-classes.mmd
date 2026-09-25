@@ -1,3 +1,4 @@
+%%{init: {"markdownAutoWrap": false}}%%
 classDiagram
     direction LR
     class Terminal {
@@ -9,9 +10,11 @@ classDiagram
         +run() None
         +render() None
         +visible_due() list~DueAlarm~
-        +ask(prompt, handler, kind, chooser, picker, browser) None
+        +ask(prompt: str, handler: Callable, kind: str, chooser: Chooser, picker: DateTimePicker, browser: FileBrowser) None
+        +current_chooser() Chooser
+        +current_picker() DateTimePicker
         +current_browser() FileBrowser
-        +apply_accelerator(action) None
+        +apply_accelerator(action: str) None
     }
     class CursesUI {
         +Terminal term
@@ -23,7 +26,7 @@ classDiagram
         +Path cwd
         +list~Entry~ entries
         +int index
-        +move(delta) None
+        +move(delta: int) None
         +go_up() None
         +activate() str
     }
@@ -35,20 +38,38 @@ classDiagram
         -Criterion _criterion
         -list~PIR~ _result
         -int _selected_id
-        +create(type_name, fields) PIR
-        +modify(fields) PIR
+        +create(type_name: str, fields: dict) PIR
+        +modify(fields: dict) PIR
         +delete_selected() bool
-        +search(line) bool
+        +search(line: str) bool
         +clear_search() None
-        +select_row(number) None
-        +select_id(pir_id) None
+        +select_row(number: int) None
+        +select_id(pir_id: int) None
         +print_selected() str
         +print_all() str
-        +save(path) bool
-        +load(path, force) bool
-        +due_alarms(now) list~DueAlarm~
+        +save(path: str) bool
+        +load(path: str, force: bool) bool
+        +due_alarms(now: datetime) list~DueAlarm~
         +current_result() list~PIR~
         +selected() PIR
+    }
+    class Chooser {
+        +str title
+        +tuple~Choice~ options
+        +int default
+        +move(index: int, delta: int) int
+        +pick_key(char: str) int
+        +value_at(index: int) str
+    }
+    class DateTimePicker {
+        +str title
+        +date day
+        +int hour
+        +int minute
+        +value() str
+        +move_day(days: int) None
+        +move_month(months: int) None
+        +move_time(minutes: int) None
     }
     class PIM {
         <<model>>
@@ -56,4 +77,6 @@ classDiagram
     Terminal --> App : calls
     CursesUI --> Terminal : drives on a TTY
     Terminal --> FileBrowser : path prompts
+    Terminal --> Chooser : closed answers
+    Terminal --> DateTimePicker : date-time prompts
     App --> PIM : calls

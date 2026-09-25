@@ -8,10 +8,25 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
-from zoneinfo import ZoneInfo
+from datetime import datetime, timedelta, timezone, tzinfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-HKT = ZoneInfo("Asia/Hong_Kong")
+
+def _hong_kong_zone() -> tzinfo:
+    """Return the `Asia/Hong_Kong` zone, or a fixed UTC+8 zone named HKT.
+
+    `zoneinfo` needs the system time-zone database (or the third-party
+    `tzdata` package). Without either, the program would stop at import.
+    Hong Kong has had no daylight saving since 1979, so the fixed offset
+    gives the same instants for every present-day time.
+    """
+    try:
+        return ZoneInfo("Asia/Hong_Kong")
+    except ZoneInfoNotFoundError:
+        return timezone(timedelta(hours=8), "HKT")
+
+
+HKT = _hong_kong_zone()
 SOON_WINDOW = timedelta(minutes=15)
 RELATIVE_UNITS = {
     "minute": timedelta(minutes=1),
@@ -56,6 +71,7 @@ class ParseError(PIMError):
     """Search criterion syntax is invalid."""
 
     def status_message(self) -> str:
+        """English text, prefixed `search syntax error:`."""
         return f"search syntax error: {self}"
 
 
@@ -67,6 +83,7 @@ class FileFormatError(PIMError):
     """The path is not a readable pim/v1 JSON file."""
 
     def status_message(self) -> str:
+        """English text, prefixed `not a PIM file:`."""
         return f"not a PIM file: {self}"
 
 
@@ -336,6 +353,7 @@ class PIR:
         self._apply(fields)
 
     def _apply(self, fields: dict[str, object]) -> None:
+        """Validate every changed field first, then assign them; subclasses implement it."""
         raise NotImplementedError
 
     def to_json(self) -> dict:
@@ -359,26 +377,32 @@ class Note(PIR):
 
     @property
     def display_name(self) -> str:
+        """First line of the body text."""
         return self.text.splitlines()[0]
 
     def text_fields(self) -> list[str]:
+        """A Note's only text field is its body."""
         return [self.text]
 
     def text_value(self, field: str) -> str | None:
+        """The body for `text`; None for any other field name."""
         if field == "text":
             return self.text
         return None
 
     def _apply(self, fields: dict[str, object]) -> None:
+        """Validate the changed fields, then assign them, so a bad value changes nothing."""
         new_text = self.text
         if "text" in fields:
             new_text = require_text(fields["text"], "text")
         self.text = new_text
 
     def to_json(self) -> dict:
+        """`pim/v1` object with the Id, type `note`, and text."""
         return {"id": self.id, "type": "note", "text": self.text}
 
     def detail_lines(self) -> list[tuple[str, str]]:
+        """Rows for `print`: Id, type, and the full text."""
         return [("Id", str(self.id)), ("type", "note"), ("text", self.text)]
 
 
@@ -400,25 +424,31 @@ class Task(PIR):
 
     @property
     def display_name(self) -> str:
+        """The description."""
         return self.description
 
     def text_fields(self) -> list[str]:
+        """A Task's only text field is its description."""
         return [self.description]
 
     def text_value(self, field: str) -> str | None:
+        """The description for `description`; None for any other field name."""
         if field == "description":
             return self.description
         return None
 
     def time_values(self, field: str) -> list[datetime]:
+        """The deadline for `deadline` when it is set; otherwise empty, so comparisons are false."""
         if field == "deadline" and self.deadline is not None:
             return [self.deadline]
         return []
 
     def relevant_time(self) -> datetime | None:
+        """The deadline shown in the list, or None when there is none."""
         return self.deadline
 
     def _apply(self, fields: dict[str, object]) -> None:
+        """Validate the changed fields, then assign them, so a bad value changes nothing."""
         new_description = self.description
         new_deadline = self.deadline
         if "description" in fields:
@@ -429,6 +459,7 @@ class Task(PIR):
         self.deadline = new_deadline
 
     def to_json(self) -> dict:
+        """`pim/v1` object; an unset deadline is stored as null."""
         return {
             "id": self.id,
             "type": "task",
@@ -437,6 +468,7 @@ class Task(PIR):
         }
 
     def detail_lines(self) -> list[tuple[str, str]]:
+        """Rows for `print`: Id, type, description, and deadline or `(none)`."""
         deadline = format_datetime(self.deadline) if self.deadline else "(none)"
         return [
             ("Id", str(self.id)),
@@ -472,17 +504,21 @@ class Event(PIR):
 
     @property
     def display_name(self) -> str:
+        """The description."""
         return self.description
 
     def text_fields(self) -> list[str]:
+        """An Event's only text field is its description."""
         return [self.description]
 
     def text_value(self, field: str) -> str | None:
+        """The description for `description`; None for any other field name."""
         if field == "description":
             return self.description
         return None
 
     def time_values(self, field: str) -> list[datetime]:
+        """`[start]` for `start`, every Effective Alarm Time for `alarm`, else empty."""
         if field == "start":
             return [self.start]
         if field == "alarm":
@@ -490,6 +526,7 @@ class Event(PIR):
         return []
 
     def relevant_time(self) -> datetime | None:
+        """The start shown in the list."""
         return self.start
 
     def effective_alarm_times(self) -> list[datetime]:
@@ -497,6 +534,7 @@ class Event(PIR):
         return [alarm.effective(self.start) for alarm in self.alarms]
 
     def _apply(self, fields: dict[str, object]) -> None:
+        """Validate the changed fields, then assign them, so a bad value changes nothing."""
         new_description = self.description
         new_start = self.start
         new_alarms = list(self.alarms)
@@ -513,6 +551,7 @@ class Event(PIR):
         self.alarms = new_alarms
 
     def to_json(self) -> dict:
+        """`pim/v1` object; each alarm keeps its kind (relative or absolute)."""
         return {
             "id": self.id,
             "type": "event",
@@ -522,6 +561,7 @@ class Event(PIR):
         }
 
     def detail_lines(self) -> list[tuple[str, str]]:
+        """Rows for `print`: Id, type, description, start, and each alarm with its kind and Effective Alarm Time."""
         lines = [
             ("Id", str(self.id)),
             ("type", "event"),
@@ -557,12 +597,15 @@ class Contact(PIR):
 
     @property
     def display_name(self) -> str:
+        """The person name."""
         return self.name
 
     def text_fields(self) -> list[str]:
+        """Name, address, and mobile, leaving out unset ones."""
         return [value for value in (self.name, self.address, self.mobile) if value]
 
     def text_value(self, field: str) -> str | None:
+        """The value of `name`, `address`, or `mobile`; None if unset or not a Contact field."""
         if field == "name":
             return self.name
         if field == "address":
@@ -572,6 +615,7 @@ class Contact(PIR):
         return None
 
     def _apply(self, fields: dict[str, object]) -> None:
+        """Validate the changed fields, then assign them, so a bad value changes nothing."""
         new_name = self.name
         new_address = self.address
         new_mobile = self.mobile
@@ -590,6 +634,7 @@ class Contact(PIR):
         self.mobile = new_mobile
 
     def to_json(self) -> dict:
+        """`pim/v1` object; unset address or mobile is stored as null."""
         return {
             "id": self.id,
             "type": "contact",
@@ -599,6 +644,7 @@ class Contact(PIR):
         }
 
     def detail_lines(self) -> list[tuple[str, str]]:
+        """Rows for `print`: Id, type, name, address, and mobile, with `(none)` when unset."""
         return [
             ("Id", str(self.id)),
             ("type", "contact"),

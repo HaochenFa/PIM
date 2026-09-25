@@ -105,7 +105,7 @@ While a wizard is asking for a field, type the value and press Enter. Empty Ente
 | `Enter` | Open a folder, or pick the highlighted `.pim` file (save as asks before overwriting it) |
 | `⌫` / `←` | Up one folder |
 | `~` | Your home folder |
-| `/` or `Tab` | Type a path instead (`Tab` fills in the current folder; `Ctrl-U` clears it) |
+| `/` or `Tab` | Type a path instead (`Tab` fills in the current folder; `Ctrl-U` clears it). In that field, `Esc` cancels at once while the filled-in path is unchanged; after you edit it, the first `Esc` clears the text and the second cancels |
 | `Esc` | Cancel |
 
 To save as a new file, pick **+ New file in this folder…**, type a name, and press Enter. `.pim` is added for you. There is no macOS Finder window: the PIM is a command-line program (the brief) and stays inside the terminal.

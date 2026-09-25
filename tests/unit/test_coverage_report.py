@@ -8,6 +8,7 @@ from coverage_report import _countable_lines
 
 class CountableLineTests(unittest.TestCase):
     def test_skips_module_class_function_docstrings_not_mid_block_strings(self):
+        """`_countable_lines` excludes only real module/class/function docstrings, not other string literals."""
         source = textwrap.dedent(
             '''\
             """mod"""
