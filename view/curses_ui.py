@@ -127,6 +127,9 @@ class CursesUI:
         curses.noecho()
         curses.cbreak()
         self.stdscr.keypad(True)
+        # ncurses waits a full second after Esc for an escape sequence; arrow
+        # keys arrive well inside 25 ms, so a lone Esc cancels at once.
+        curses.set_escdelay(25)
         self.stdscr.timeout(500)
         self.theme = init_theme(curses)
         if self.theme.rich:
