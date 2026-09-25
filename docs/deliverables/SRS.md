@@ -1,7 +1,7 @@
 ---
 title: "Software Requirements Specification — Personal Information Management (PIM) System"
 subtitle: "COMP3211 Software Engineering, Fall 2026 — Group Project"
-date: "Version 1.2 draft, 24 September 2026"
+date: "Version 1.3 draft, 25 September 2026"
 ---
 
 <!-- Source-tree note (not rendered): this SRS is the only product
@@ -27,6 +27,7 @@ Readers are expected to know basic software-engineering terms. They do not need 
 | 1.0 draft | 23 Sep 2026 | First complete draft. It covers user stories US1–US11, the in-process Alarm Alert, and the non-functional constraints of the brief. |
 | 1.1 draft | 24 Sep 2026 | Store and load (FR-29, FR-34): paths may start with `~`, and the status line names the absolute path. Accelerators `W` (save as) and `o` (load) (FR-38). New FR-39: folder browser for load and save-as paths. The former FR-39 – FR-42 are now FR-40 – FR-43. Verification lines name the tests. |
 | 1.2 draft | 24 Sep 2026 | This SRS becomes the only product specification in the source tree. Added the glossary term Alarm Alert, the selection errors in FR-26, and the list of covered invalid inputs in NFR-4. |
+| 1.3 draft | 25 Sep 2026 | HKT falls back to a fixed UTC+8 offset when the computer has no time-zone database (glossary, NFR-6). |
 
 ## 1.3 Conventions
 
@@ -92,7 +93,7 @@ The system reads and writes `.pim` files on the local file system. It has no oth
 | Search Criterion | A condition over PIR type and field values, written as one line (see FR-16). |
 | Bound File | The `.pim` file last saved or loaded, or none. |
 | Dirty | The state in which the Working Collection has changes not yet saved. |
-| HKT | Hong Kong Time, IANA zone `Asia/Hong_Kong` (UTC+8, no daylight saving). It is the default time zone. |
+| HKT | Hong Kong Time, IANA zone `Asia/Hong_Kong` (UTC+8, no daylight saving), or a fixed UTC+8 offset when the computer has no time-zone database. It is the default time zone. |
 | PIM File | A UTF-8 JSON file with the extension `.pim` that stores a Working Collection. |
 | Status line | The one-line message area where the system reports the outcome of every command. |
 
@@ -337,7 +338,7 @@ A row number shall select by position in the Current Result and is not an identi
 
 **NFR-5 (Data integrity)** A failed save shall not damage the earlier file, and a failed load shall not change memory (see FR-32 and FR-36). The system shall never silently discard unsaved changes (FR-37).
 
-**NFR-6 (Time)** Every stored time shall carry a time zone. The default zone shall be HKT, and comparisons shall use instants (see FR-11 and FR-20).
+**NFR-6 (Time)** Every stored time shall carry a time zone. The default zone shall be HKT, and comparisons shall use instants (see FR-11 and FR-20). If the computer has no time-zone database, the system shall use a fixed UTC+8 offset for HKT instead of failing to start.
 
 **NFR-7 (Performance)** With 10,000 PIRs in the Working Collection, each of the following shall finish within 1 second on the development Mac: a search, the alarm check, a save, and a load.
 *Verification:* measured on 24 Sep 2026 with 2,500 PIRs of each type (every Event with three alarms), best of five runs. A search with `type = event && description contains "comp" || alarm < 2026-10-01 00:00` took 2 ms, the alarm check 2 ms, a save 44 ms, and a load 24 ms.

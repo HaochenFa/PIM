@@ -1,7 +1,7 @@
 ---
 title: "Design Document — Personal Information Management (PIM) System"
 subtitle: "COMP3211 Software Engineering, Fall 2026 — Group Project"
-date: "Version 1.2 draft, 24 September 2026"
+date: "Version 1.3 draft, 25 September 2026"
 ---
 
 <!-- Source-tree note (not rendered): this is the only architecture and
@@ -368,7 +368,7 @@ Each table below records one group of decisions: what was decided, why, and what
 |------------------------------------------|------------------------------------------|----------------------------|
 | Python 3.12 with the standard library only. | The brief allows Java or Python and grades use of the standard library only. Python is the language the group knows best. | Java: nothing in the brief favours it. Any pip package, for example Textual, Rich, or pytest. |
 | A full-screen `curses` interface on an interactive terminal, and a plain line interface when input or output is redirected (or `PIM_NO_CURSES=1`). | The brief asks for a command-line system and gives no credit for a GUI. `curses` is in the standard library. The line interface lets tests inject `stdin`, `stdout`, and `now`. | A GUI window (tkinter). A third-party terminal library. A line interface only, which would make alarms and selection hard to see. |
-| Every time is time-zone aware. A time typed without an offset is Hong Kong Time (`Asia/Hong_Kong`). Comparisons use instants. | The same PIM File then means the same instants on every machine. HKT has no daylight saving. | The machine's local zone. Requiring an offset on every input. |
+| Every time is time-zone aware. A time typed without an offset is Hong Kong Time (`Asia/Hong_Kong`). Comparisons use instants. If the system time-zone database is missing, HKT is a fixed UTC+8 offset. | The same PIM File then means the same instants on every machine. HKT has had no daylight saving since 1979, so the fixed offset gives the same present-day instants, and the program still starts on a computer without the database. | The machine's local zone. Requiring an offset on every input. Stopping at start-up without the database. The third-party `tzdata` package. |
 
 ## 5.2 Structure
 

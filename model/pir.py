@@ -8,10 +8,25 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
-from zoneinfo import ZoneInfo
+from datetime import datetime, timedelta, timezone, tzinfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-HKT = ZoneInfo("Asia/Hong_Kong")
+
+def _hong_kong_zone() -> tzinfo:
+    """Return the `Asia/Hong_Kong` zone, or a fixed UTC+8 zone named HKT.
+
+    `zoneinfo` needs the system time-zone database (or the third-party
+    `tzdata` package). Without either, the program would stop at import.
+    Hong Kong has had no daylight saving since 1979, so the fixed offset
+    gives the same instants for every present-day time.
+    """
+    try:
+        return ZoneInfo("Asia/Hong_Kong")
+    except ZoneInfoNotFoundError:
+        return timezone(timedelta(hours=8), "HKT")
+
+
+HKT = _hong_kong_zone()
 SOON_WINDOW = timedelta(minutes=15)
 RELATIVE_UNITS = {
     "minute": timedelta(minutes=1),

@@ -2,7 +2,7 @@
 
 Platform: **macOS only** (developed on macOS with Python 3.12.9). Language: **Python 3.12** or newer. Standard library only — do not add pip packages. There is no build step and nothing to compile.
 
-`model` reads the time zone `Asia/Hong_Kong` from the system time-zone database through `zoneinfo`, which macOS provides. Other platforms are not supported: for example, Windows has no system database without the third-party `tzdata` package.
+`model` reads the time zone `Asia/Hong_Kong` from the system time-zone database through `zoneinfo`, which macOS provides. If the database is missing (for example on Windows without the third-party `tzdata` package), `model` falls back to a fixed UTC+8 zone named HKT, so the program still starts. Other platforms are not documented here.
 
 Use `python3` in every command below. Stock macOS has no `python` command.
 
