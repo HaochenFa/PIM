@@ -164,9 +164,13 @@ JSON dicts. Empty modify no longer marks the collection dirty.
 
 ```
 fix(model): keep load from clobbering memory on bad JSON
+
+Parse the whole .pim file before replacing the collection, so a corrupt
+file leaves the current records, next Id, and dirty flag untouched and
+the status line reports the error.
 ```
 
-Do not write one-line messages like `update` or `INIT (PLAN)`. Do not omit the type/scope prefix.
+Every commit carries the type/scope prefix; only a trivial change may omit the body.
 
 ### Granularity
 
