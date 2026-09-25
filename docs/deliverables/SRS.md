@@ -27,7 +27,7 @@ Readers are expected to know basic software-engineering terms. They do not need 
 | 1.0 draft | 23 Sep 2026 | First complete draft. It covers user stories US1–US11, the in-process Alarm Alert, and the non-functional constraints of the brief. |
 | 1.1 draft | 24 Sep 2026 | Store and load (FR-29, FR-34): paths may start with `~`, and the status line names the absolute path. Accelerators `W` (save as) and `o` (load) (FR-38). New FR-39: folder browser for load and save-as paths. The former FR-39 – FR-42 are now FR-40 – FR-43. Verification lines name the tests. |
 | 1.2 draft | 24 Sep 2026 | This SRS becomes the only product specification in the source tree. Added the glossary term Alarm Alert, the selection errors in FR-26, and the list of covered invalid inputs in NFR-4. |
-| 1.3 draft | 25 Sep 2026 | HKT falls back to a fixed UTC+8 offset when the computer has no time-zone database (glossary, NFR-6). |
+| 1.3 draft | 25 Sep 2026 | HKT falls back to a fixed UTC+8 offset when the computer has no time-zone database (glossary, NFR-6). Every requirement now has a verification line (FR-38, FR-40, NFR-2, NFR-5, NFR-6, NFR-9, NFR-10). |
 
 ## 1.3 Conventions
 
@@ -299,6 +299,7 @@ STRING     := '"' characters '"'      (\" and \\ escape)
 - `dismiss`, `help`, `quit`
 
 An unknown command shall be reported as an error and change nothing. On a TTY, single-key accelerators (for example `c` create, `/` search, `w` save, `W` save as, `o` load) shall run the same commands.
+*Verification:* unit tests in `tests/unit/test_keys.py` and `test_unknown_command_and_non_print_clears_print_text`; e2e command scripts in `tests/e2e/test_commands.py`.
 
 **FR-39 (Folder browser)** On a TTY, a load or save-as path prompt shall show a folder browser. The browser shall list the parent folder (except at the filesystem root), subfolders, and `.pim` files, without hidden entries. It shall start in the Bound File's folder, or else the folder the system was started from. Enter on a folder shall open it, and Enter on a `.pim` file shall use that file. In save mode, a "new file in this folder" entry shall ask for a file name. `/` or Tab shall switch to typing a path, and Esc shall cancel. The chosen path shall be handled exactly like a typed one (FR-29 – FR-37). A folder that cannot be read shall be reported inside the browser, not as an error that ends the command. There shall be no GUI file dialog.
 *Verification of FR-39:* unit tests for the browser widget, the Terminal path prompts, and the curses browser keys.
@@ -312,6 +313,7 @@ An unknown command shall be reported as an error and change nothing. On a TTY, s
 - the status line.
 
 A row number shall select by position in the Current Result and is not an identity.
+*Verification:* unit tests in `tests/unit/test_layout.py`; integration tests `test_layout_shows_search_and_dirty_flag` and `test_select_row_is_not_identity`.
 
 ## 6.9 Alarm Alerts (derived from US4)
 
@@ -329,6 +331,7 @@ A row number shall select by position in the Current Result and is not an identi
 *Verification:* inspect all imports.
 
 **NFR-2 (Platform)** The system shall run on macOS with Python 3.12 or newer, in Terminal or iTerm. The developer manual shall describe this platform only.
+*Verification:* `python3 -m unittest` and the demo script run on macOS with Python 3.12; inspect the developer manual.
 
 **NFR-3 (Structure)** All model code shall be in a package named `model`, which shall not import `view` or `controller`. The other components shall be in `view` and `controller`.
 *Verification:* inspect imports.
@@ -337,8 +340,10 @@ A row number shall select by position in the Current Result and is not an identi
 *Verification:* unit, integration, and e2e error tests.
 
 **NFR-5 (Data integrity)** A failed save shall not damage the earlier file, and a failed load shall not change memory (see FR-32 and FR-36). The system shall never silently discard unsaved changes (FR-37).
+*Verification:* unit tests `test_write_failure_unlinks_temp_and_reraises`, `test_bad_json_does_not_clobber_memory`, and `test_dirty_quit_save_discard_and_invalid_choice`.
 
 **NFR-6 (Time)** Every stored time shall carry a time zone. The default zone shall be HKT, and comparisons shall use instants (see FR-11 and FR-20). If the computer has no time-zone database, the system shall use a fixed UTC+8 offset for HKT instead of failing to start.
+*Verification:* unit tests for date-time parsing, including `test_missing_zone_database_falls_back_to_fixed_utc_plus_8`.
 
 **NFR-7 (Performance)** With 10,000 PIRs in the Working Collection, each of the following shall finish within 1 second on the development Mac: a search, the alarm check, a save, and a load.
 *Verification:* measured on 24 Sep 2026 with 2,500 PIRs of each type (every Event with three alarms), best of five runs. A search with `type = event && description contains "comp" || alarm < 2026-10-01 00:00` took 2 ms, the alarm check 2 ms, a save 44 ms, and a load 24 ms.
@@ -347,5 +352,7 @@ A row number shall select by position in the Current Result and is not an identi
 *Verification:* `python3 -m unittest`; `python3 coverage_report.py`.
 
 **NFR-9 (Usability)** Prompts, messages, and manuals shall be in English. Each error message shall say what went wrong, and shall name the field or value at fault when there is one (for example `description is required`, `no PIR with Id 9`).
+*Verification:* the error tests of NFR-4 assert the exact message text; inspect the Errors section of the user manual.
 
 **NFR-10 (Scope)** The system shall not include the out-of-scope features listed in Section 2.2.
+*Verification:* inspect the commands (FR-38) and the source against the list in Section 2.2.
