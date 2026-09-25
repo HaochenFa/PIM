@@ -252,6 +252,29 @@ class BrowserKeyTests(unittest.TestCase):
         self.assertEqual(self.app.status, "command cancelled")
         self.assertNotIn("load", [call[0] for call in self.app.calls])
 
+    def test_one_escape_cancels_an_unedited_prefilled_path(self):
+        """After `/` or Tab, one Esc cancels the load while the pre-filled path is unchanged."""
+        for key in ("/", "\t"):
+            self.term.apply_accelerator("load")
+            self.ui._handle_browser_key(key)
+            self.ui._handle_key("\x1b")
+            self.assertEqual(self.term._prompt_label(), "> ")
+            self.assertEqual(self.ui.buffer, "")
+            self.assertEqual(self.app.status, "command cancelled")
+        self.assertNotIn("load", [call[0] for call in self.app.calls])
+
+    def test_escape_after_editing_the_path_clears_it_first(self):
+        """After the typed path is edited, the first Esc clears it and keeps the prompt; the second cancels."""
+        self.term.apply_accelerator("load")
+        self.ui._handle_browser_key("/")
+        self.ui._handle_key("t")
+        self.ui._handle_key("\x1b")
+        self.assertEqual(self.ui.buffer, "")
+        self.assertEqual(self.term._prompt_label(), "load path: ")
+        self.ui._handle_key("\x1b")
+        self.assertEqual(self.term._prompt_label(), "> ")
+        self.assertNotIn("load", [call[0] for call in self.app.calls])
+
     def test_browser_key_without_a_browser_is_not_consumed(self):
         """With no browser open, the handler leaves the key to the rest of the UI."""
         self.assertFalse(self.ui._handle_browser_key("j"))
