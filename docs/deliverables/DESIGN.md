@@ -90,7 +90,7 @@ After each input or timeout, the View asks `App.due_alarms(now)` for alerts and 
 
 ## 3.1 Model classes
 
-![Model classes, part 1: the Working Collection, the PIR hierarchy, and alarms.](diagrams/model-pir-classes.png){height=80%}
+![Model classes, part 1: the Working Collection, the PIR hierarchy, and alarms. Argument types are shortened here; the tables below give the full types.](diagrams/model-pir-classes.png){height=80%}
 
 **Relationships.**
 
@@ -240,12 +240,13 @@ A PIM File is UTF-8 JSON. `write_pim_file` writes it; `read_pim_file` checks it 
 
 ## 3.2 Controller and View classes
 
-![Controller and View classes.](diagrams/controller-view-classes.png){width=100%}
+![Controller and View classes. Argument types are shortened here; the tables below give the full types.](diagrams/controller-view-classes.png){width=100%}
 
 **Relationships.**
 
 - `CursesUI` drives a `Terminal` when a TTY is available.
 - `Terminal` calls `App` for every user action.
+- A prompt of `Terminal` may hold one widget: a `Chooser`, a `DateTimePicker`, or a `FileBrowser`. A widget only produces the answer text; the prompt handler checks it exactly like typed input.
 - `App` calls `PIM`.
 
 Neither `App` nor `Terminal` stores PIR data of its own. `App` stores only the Current Result (a list of PIR references), the criterion, and the Selected Id, and it re-runs the criterion after every change.
@@ -259,23 +260,35 @@ Neither `App` nor `Terminal` stores PIR data of its own. `App` stores only the C
 - `print_text: str`
 - private: `_criterion: Criterion | None`, `_criterion_line: str | None`, `_result: list[PIR]`, `_selected_id: int | None`
 
-The controller never raises: on failure it sets the status and returns `None` or `False`.
+Constructor: `App(pim: PIM)`. It binds to a Working Collection, which may be empty or already loaded, and shows the whole collection as the Current Result.
 
-| Return type | Method | Arguments | Description |
-|------------------------------------|------------------------------------------|------------------------------------------------------|----------------------------------------------------------------------|
-| `PIR \| None` | `create` | `type_name: str`, `fields: dict[str, object]` | Creates a PIR and selects it. |
-| `PIR \| None` | `modify` | `fields: dict[str, object]` | Modifies the selection. Empty `fields` changes nothing. |
-| `bool` | `delete_selected` | — | Deletes the selection, after the View has confirmed. |
-| `bool` | `search` | `line: str` | Parses and runs a criterion. On error, keeps the Current Result. |
-| `None` | `clear_search` | — | Restores the whole collection. |
-| `None` | `select_row` / `select_id` | `number: int \| str` / `pir_id: int \| str` | Selects by row of the Current Result, or by Id. |
-| `str \| None` | `print_selected` | — | Detail text of the selection. |
-| `str` | `print_all` | — | Detail text of every PIR in the Current Result. |
-| `bool` | `save` | `path: str \| os.PathLike[str] \| None = None` | Saves to the Bound File or to `path`; the status names the absolute path. Reports `OSError` as a status. |
-| `bool` | `load` | `path: str \| os.PathLike[str]`, `force: bool = False` | Loads and resets the search and the Selection; the status names the absolute path. |
-| `list[DueAlarm]` | `due_alarms` | `now: datetime` | Passes through to the model. |
-| `list[PIR]` / `PIR \| None` / `bool` | `current_result` / `selected` / `is_dirty` | — | State that the View reads to draw the screen. |
-| `bool` | `would_overwrite` | `path: str \| os.PathLike[str]` | Whether `save as` would replace another existing file. |
+The controller does not raise. On a failure it sets `status` to one English line with `status_kind` `err`, and returns `None` or `False`. The only exception is `save_target`, which the View uses to check a path before asking about an overwrite.
+
+| Return type | Method | Arguments | Exceptions | Description |
+|----------------------|------------------------------|--------------------------------|--------------------------|----------------------------------------------|
+| `PIR \| None` | `create` | `type_name: str`, `fields: dict[str, object]` | none | Creates a PIR and selects it. |
+| `PIR \| None` | `modify` | `fields: dict[str, object]` | none | Modifies the selection. Empty `fields` changes nothing. |
+| `bool` | `delete_selected` | — | none | Deletes the selection, after the View has confirmed. |
+| `bool` | `search` | `line: str` | none | Parses and runs a criterion. On error, keeps the Current Result. |
+| `None` | `clear_search` | — | none | Restores the whole collection. |
+| `None` | `select_row` | `number: int \| str` | none | Selects by row of the Current Result. |
+| `None` | `select_id` | `pir_id: int \| str` | none | Selects by Id. |
+| `str \| None` | `print_selected` | — | none | Detail text of the selection. |
+| `str` | `print_all` | — | none | Detail text of every PIR in the Current Result. |
+| `None` | `clear_print` | — | none | Drops the last printed text. |
+| `bool` | `save` | `path: str \| os.PathLike[str] \| None = None` | none | Saves to the Bound File or to `path`; the status names the absolute path. Reports an `OSError` as a status. |
+| `bool` | `load` | `path: str \| os.PathLike[str]`, `force: bool = False` | none | Loads and resets the search and the Selection; the status names the absolute path. |
+| `str` | `save_target` | `path: str \| os.PathLike[str]` | `ValidationError` | The path `save` would write, with `.pim` appended. |
+| `bool` | `would_overwrite` | `path: str \| os.PathLike[str]` | none | Whether `save as` would replace another existing file. |
+| `list[DueAlarm]` | `due_alarms` | `now: datetime` | none | Passes through to the model. |
+| `None` | `set_status` | `text: str`, `kind: str = "info"` | none | Sets the status line and its tone. |
+| `list[PIR]` | `current_result` | — | none | The Current Result, for drawing. |
+| `PIR \| None` | `selected` | — | none | The selected PIR. |
+| `int \| None` | `selected_id` | — | none | Id of the selected PIR. |
+| `bool` | `has_criterion` | — | none | Whether a search is active. |
+| `str \| None` | `criterion_line` | — | none | The text of the active search. |
+| `str \| None` | `bound_path` | — | none | The Bound File. |
+| `bool` | `is_dirty` | — | none | Whether there are unsaved changes. |
 
 `controller.errors.message_for(exc: BaseException) -> str` maps an exception to one status line:
 
@@ -288,21 +301,31 @@ The controller never raises: on failure it sets the status and returns `None` or
 **Fields:**
 
 - `app: App`
-- `stdin`, `stdout`: text streams
-- `queue: Queue`
-- `dismissed: set[tuple[int, int]]`
+- `stdin: TextIO`, `stdout: TextIO`
+- `queue: Queue`: lines from the stdin reader thread (line UI)
+- `dismissed: set[tuple[int, int]]`: dismissed alerts, keyed by (Event Id, alarm index)
 - `page_size: int`
-- `_now`: an injected clock, for tests
+- private: `_now: datetime | Callable[[], datetime] | None`, `_prompts: list[Prompt]`
+
+Constructor: `Terminal(app: App, stdin: TextIO | None = None, stdout: TextIO | None = None, now: datetime | Callable[[], datetime] | None = None)`. Tests inject the streams and `now`. Left out, they are the process streams and the HKT wall clock.
+
+None of these methods raises to its caller. Each command is run inside a handler that turns any exception into the status line (NFR-4).
 
 | Return type | Method | Arguments | Description |
-|--------------------|--------------------------|--------------------------------------------------|--------------------------------------------------|
+|----------------------|--------------------------------|------------------------------------------|------------------------------------------------------------|
 | `None` | `run` | — | Starts `CursesUI` on a TTY, or else the line loop. Returns on quit. |
 | `list[DueAlarm]` | `visible_due` | — | Due alarms minus the dismissed ones. |
+| `Screen` | `screen` | — | The screen model (title, banner, list, detail, status) that both front ends draw. |
 | `None` | `render` | — | Draws the line-UI screen. |
-| `None` | `ask` | `prompt: str`, `handler`, `kind: str \| None = None`, `chooser = None`, `picker = None`, `browser = None` | Queues a prompt; `handler(answer)` runs when the user answers. |
+| `None` | `ask` | `prompt: str`, `handler: Callable[[str], object]`, `kind: str \| None = None`, `chooser: Chooser \| None = None`, `picker: DateTimePicker \| None = None`, `browser: FileBrowser \| None = None` | Queues a prompt; `handler(answer)` runs when the user answers. At most one widget is set. |
+| `None` | `apply_accelerator` | `action: str` | Runs the command bound to a single key. |
+| `None` | `cancel_prompt` | — | Esc: drops the current wizard, but not a dirty save / discard / cancel prompt. |
+| `None` | `idle_escape` | — | Esc with no wizard: clears an active search. |
+| `None` | `retry_search_prompt` | — | Opens the criterion field again after a syntax error (FR-23). |
+| `Chooser \| None` | `current_chooser` | — | The selector of the current prompt, if any. |
+| `DateTimePicker \| None` | `current_picker` | — | The calendar of the current date-time prompt, if any. |
 | `FileBrowser \| None` | `current_browser` | — | The folder browser of the current load or save-as prompt, if any. |
 | `None` | `type_path_instead` | — | Drops the browser so the same prompt takes a typed path. |
-| `None` | `apply_accelerator` | `action: str` | Runs the command bound to a single key. |
 
 ### Class `CursesUI` (module `view.curses_ui`)
 
@@ -312,15 +335,72 @@ The controller never raises: on failure it sets the status and returns `None` or
 - `stdscr`: the curses window
 - `theme: Theme`
 
-It has one public method, `loop() -> None`: the full-screen event loop (`get_wch` with a 500 ms timeout). Every command runs through `_safe`, which turns any exception into a status line.
+It has one public method, `loop() -> None`: the full-screen event loop (`get_wch` with a 500 ms timeout). Every command runs through `_safe`, which turns any exception into a status line. It raises no exception to its caller.
+
+### Classes `Chooser` and `Choice` (module `view.widgets`)
+
+A `Chooser` is a closed list of answers, for example Note · Task · Event · Contact, or Yes · No. It is an immutable dataclass. The View keeps the highlighted index, so the methods take and return indexes. The value it submits is the same text a user would type in the line UI.
+
+**Fields:** `title: str`, `options: tuple[Choice, ...]`, `default: int = 0`, `hint: str`. Each `Choice` has `value: str`, `label: str`, `key: str | None` (a one-key shortcut), and `tone: str | None` (a colour role).
+
+| Return type | Method | Arguments | Exceptions | Description |
+|----------------------|------------------------------|--------------------------------|--------------------------|----------------------------------------------|
+| `int` | `clamp` | `index: int` | none | Keeps `index` inside the option list. |
+| `int` | `move` | `index: int`, `delta: int` | none | Moves by `delta` without wrapping. |
+| `int \| None` | `pick_key` | `char: str` | none | The option chosen by a digit (1-based) or its key; `None` if no match. |
+| `str` | `value_at` | `index: int` | none | The value to submit for that option. |
+
+### Class `DateTimePicker` (module `view.widgets`)
+
+A month grid and a time list for date-time prompts on a TTY (FR-11). The week starts on Monday, and the time moves in 15-minute steps. Its submitted value is text in the form `YYYY-MM-DD HH:MM`, which the model parses as HKT.
+
+**Fields:** `title: str`, `required: bool`, `today: date`, `day: date`, `hour: int`, `minute: int`, `view: date` (first day of the shown month), `focus: str` (`date` or `time`).
+
+Constructor: `DateTimePicker(title: str, now: datetime, *, initial: datetime | None = None, required: bool = True)`. It starts on `initial`, or else on the next 15-minute mark after `now`.
+
+| Return type | Method | Arguments | Exceptions | Description |
+|----------------------------|----------------------------|------------------------------|--------------------|--------------------------------------------------|
+| `str` | `value` | — | none | The text to submit, `YYYY-MM-DD HH:MM`. |
+| `str` | `summary` | — | none | A readable confirmation, for example `Mo 14 September 2026  18:30  HKT`. |
+| `str` | `month_title` | — | none | Month name and year for the grid header. |
+| `list[list[date]]` | `weeks` | — | none | The weeks of the shown month, Monday first. |
+| `None` | `move_day` | `days: int` | none | Moves the chosen day and keeps the month in view. |
+| `None` | `move_month` | `months: int` | none | Shows another month; clamps the day if the month is shorter. |
+| `None` | `move_time` | `minutes: int` | none | Changes the time, wrapping within the day. |
+| `None` | `jump_today` | `now: datetime` | none | Chooses today and keeps the time. |
+| `None` | `toggle_focus` | — | none | Switches between the grid and the time list. |
+| `list[tuple[int, int]]` | `time_slots` | `count: int = 7` | none | `count` times around the chosen one, 15 minutes apart. |
+
+### Class `FileBrowser` (module `view.file_browser`)
+
+The folder browser for load and save-as paths on a TTY (FR-39). It lists one folder: the parent link, subfolders, and `.pim` files. Hidden entries are left out. In save mode it adds a "new file in this folder" row. It returns a path string, so the prompt handler checks it like a typed path (Section 5.4).
+
+**Fields:** `mode: str` (`load` or `save`), `cwd: Path`, `entries: list[Entry]`, `index: int` (the highlighted row), `error: str` (set when the folder cannot be read). Each `Entry` has `kind: str` (parent, folder, file, or new file) and `name: str`.
+
+Constructor: `FileBrowser(mode: str, start: str | os.PathLike[str])`. It reads `start` at once.
+
+| Return type | Method | Arguments | Exceptions | Description |
+|----------------------|------------------------------|------------------------------|--------------------|------------------------------------------------------|
+| `str` | `title` (property) | — | none | Heading for the overlay. |
+| `None` | `refresh` | — | none | Reads `cwd` again. A folder that cannot be read sets `error` instead of raising. |
+| `Entry \| None` | `current` | — | none | The highlighted row. |
+| `None` | `move` | `delta: int` | none | Moves the highlight without wrapping. |
+| `None` | `jump` | `last: bool` | none | Highlights the first or last row. |
+| `None` | `go_up` | — | none | Opens the parent folder and highlights the folder just left. |
+| `None` | `go_home` | — | none | Opens the home folder. |
+| `str \| None` | `activate` | — | none | Opens a folder (returns `None`), or returns the absolute path of a `.pim` file. |
+| `str` | `highlighted_path` | — | none | Absolute path of the highlighted folder or file. |
+| `bool` | `wants_typing` | — | none | Whether the "new file" row is highlighted. |
+| `str` | `typed_start` | — | none | Text to pre-fill when switching to a typed path: the current folder. |
+| `tuple` | `state` | — | none | A hashable snapshot, so the screen redraws only on change. |
 
 ### View helper modules
 
 | Module | Role |
 |-------------------|----------------------------------------------------------------------|
 | `view.layout` | Builds the screen model: title, banner, list rows, detail, and menu. |
-| `view.widgets` | `Chooser` (a closed list of answers) and `DateTimePicker` (calendar and time). |
-| `view.file_browser` | `FileBrowser`: folders and `.pim` files for load and save-as paths. Returns a path string, so the prompt handler validates it like a typed path (Section 5.4). |
+| `view.widgets` | `Chooser` and `DateTimePicker` (see above), and `Prompt`: one queued question with its handler and at most one widget. |
+| `view.file_browser` | `FileBrowser` (see above) and its row type `Entry`. |
 | `view.keys` | Maps keys to actions (accelerators), e.g. `w` save, `W` save as, `o` load. |
 | `view.theme` | Colour roles for 256-colour, 8-colour, and monochrome terminals. |
 | `view.textwidth` | East-Asian-width-aware clipping and padding. |
