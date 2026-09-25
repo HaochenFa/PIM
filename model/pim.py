@@ -153,6 +153,7 @@ class PIM:
         return self._bound_path
 
     def _insert(self, pir: PIR) -> PIR:
+        """Store a newly created PIR, advance the next Id past it, and mark the collection dirty."""
         self._pirs[pir.id] = pir
         self._next_id = pir.id + 1
         self._dirty = True
