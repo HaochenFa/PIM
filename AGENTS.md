@@ -92,7 +92,7 @@ Use the SRS glossary terms as written. Forbidden substitutions:
 ## Implementation guardrails
 
 - Python 3, **standard library only**. No `requirements.txt` of third-party packages.
-- Default timezone: IANA `Asia/Hong_Kong` (HKT). All datetimes timezone-aware. Compare instants.
+- Default timezone: IANA `Asia/Hong_Kong` (HKT); `model.pir` falls back to a fixed UTC+8 zone when the tz database is missing, so never build `ZoneInfo` elsewhere. All datetimes timezone-aware. Compare instants.
 - Failed commands are atomic: no mutation, no traceback to the user, no process exit. One specific English status-line error.
 - Whitespace-only strings are missing values. Missing required fields fail the command.
 - Ids are monotonic integers, persisted, never reused after delete.
