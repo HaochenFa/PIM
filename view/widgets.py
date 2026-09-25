@@ -10,6 +10,7 @@ from __future__ import annotations
 import calendar
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
+from typing import Callable
 
 from model.pir import HKT
 from view.file_browser import FileBrowser
@@ -206,7 +207,7 @@ class Prompt:
     """
 
     label: str
-    handler: object
+    handler: Callable[[str], object]
     kind: str | None = None
     chooser: Chooser | None = None
     picker: DateTimePicker | None = None
